@@ -38,7 +38,7 @@ def build_html(data):
 <head><meta charset='UTF-8'><title>Market Dashboard</title></head>
 <body>
 <h1>Market News Dashboard</h1>
-<p>Last updated: {now}</p>
+<p>Last updated: {now} (auto-refresh test)</p>
 """
     for item in data:
         content += f"<h3>{item['shortName']} ({item['symbol']})</h3>"
