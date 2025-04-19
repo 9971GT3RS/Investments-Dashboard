@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 # === CONFIG ===
 YAHOO_API_URL = "https://yfapi.net/v6/finance/quote"
-API_KEY = "YOUR_RAPIDAPI_KEY"  # 👈 Insert your real RapidAPI key here
+API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"  # 👈 Insert your real RapidAPI key here
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
            "CRM", "NOW", "TSLA", "TSM", "SQ", "ILMN", "MU", "MRVL", "NKE", "RENK.DE",
