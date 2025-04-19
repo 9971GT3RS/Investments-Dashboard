@@ -1,24 +1,25 @@
-# update_dashboard.py
+# update_dashboard.py (mit RapidAPI Yahoo Finance)
 import requests
 from datetime import datetime, timedelta
 
 # === CONFIG ===
-YAHOO_API_URL = "https://yfapi.net/v6/finance/quote"
-x-rapidapi-key = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
+YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
+API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a" 
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
            "CRM", "NOW", "TSLA", "TSM", "SQ", "ILMN", "MU", "MRVL", "NKE", "RENK.DE",
            "XOM", "OXY", "UAA", "BABA", "XPEV"]
 
 HEADERS = {
-    "x-api-key": API_KEY,
-    "accept": "application/json"
+    "x-rapidapi-key": API_KEY,
+    "x-rapidapi-host": "apidojo-yahoo-finance-v1.p.rapidapi.com"
 }
 
 # === FUNCTIONS ===
 def fetch_stock_data():
     try:
-        response = requests.get(YAHOO_API_URL, headers=HEADERS, params={"symbols": ",".join(TICKERS)})
+        params = {"symbols": ",".join(TICKERS), "region": "US"}
+        response = requests.get(YAHOO_API_URL, headers=HEADERS, params=params)
         response.raise_for_status()
         return response.json().get("quoteResponse", {}).get("result", [])
     except Exception as e:
