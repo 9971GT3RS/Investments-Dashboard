@@ -2,8 +2,9 @@
 import requests
 from datetime import datetime, timedelta
 
+# === CONFIG ===
 YAHOO_API_URL = "https://yfapi.net/v6/finance/quote"
-API_KEY = "YOUR_RAPIDAPI_KEY"
+API_KEY = "YOUR_RAPIDAPI_KEY"  # 👈 Insert your real RapidAPI key here
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
            "CRM", "NOW", "TSLA", "TSM", "SQ", "ILMN", "MU", "MRVL", "NKE", "RENK.DE",
@@ -14,13 +15,15 @@ HEADERS = {
     "accept": "application/json"
 }
 
+# === FUNCTIONS ===
 def fetch_stock_data():
-    response = requests.get(YAHOO_API_URL, headers=HEADERS, params={"symbols": ",".join(TICKERS)})
-    if response.status_code == 200:
-        return response.json()["quoteResponse"]["result"]
-    else:
-        print("Error fetching stock data:", response.text)
-        return []
+    try:
+        response = requests.get(YAHOO_API_URL, headers=HEADERS, params={"symbols": ",".join(TICKERS)})
+        response.raise_for_status()
+        return response.json().get("quoteResponse", {}).get("result", [])
+    except Exception as e:
+        print("Error fetching stock data:", e)
+        return None
 
 def fetch_dummy_news():
     today = datetime.now()
@@ -38,19 +41,32 @@ def build_html(data):
 <head><meta charset='UTF-8'><title>Market Dashboard</title></head>
 <body>
 <h1>Market News Dashboard</h1>
-<p>Last updated: {now} (auto-refresh test)</p>
+<p>Last updated: {now}</p>
 """
-    for item in data:
-        content += f"<h3>{item['shortName']} ({item['symbol']})</h3>"
-        content += f"<p>Price: ${item['regularMarketPrice']} ({item['regularMarketChangePercent']:.2f}%)</p>"
-        content += f"<p>Next earnings: [manual entry or API]</p>"
-        for news in fetch_dummy_news():
-            if datetime.strptime(news['date'], "%Y-%m-%d") >= datetime.now() - timedelta(days=7):
-                content += f"<div>• {news['date']}: {news['title']} – {news['summary']}</div>"
+
+    if not data:
+        content += "<p><strong style='color:red;'>⚠️ Could not load stock data. Please check your API key or limits.</strong></p>"
+    else:
+        for item in data:
+            name = item.get('shortName') or item.get('symbol', 'N/A')
+            symbol = item.get('symbol', 'N/A')
+            price = item.get('regularMarketPrice', 'N/A')
+            change = item.get('regularMarketChangePercent')
+            change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
+            content += f"<h3>{name} ({symbol})</h3>"
+            content += f"<p>Price: ${price} ({change_text})</p>"
+            content += f"<p>Next earnings: [manual entry or API]</p>"
+            for news in fetch_dummy_news():
+                date = datetime.strptime(news['date'], "%Y-%m-%d")
+                if date >= datetime.now() - timedelta(days=7):
+                    content += f"<div>• {news['date']}: {news['title']} – {news['summary']}</div>"
+
     content += "</body></html>"
+
     with open("boersen-dashboard.html", "w", encoding="utf-8") as f:
         f.write(content)
 
+# === MAIN ===
 if __name__ == "__main__":
     stock_data = fetch_stock_data()
     build_html(stock_data)
