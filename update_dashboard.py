@@ -1,7 +1,6 @@
-# update_dashboard.py (mit Yahoo Finance Kursdaten + echte News + Earnings via FMP)
+# update_dashboard.py (robust ohne pytz, mit Earnings und News)
 import requests
-from datetime import datetime, timedelta
-import pytz
+from datetime import datetime, timedelta, timezone
 
 # === CONFIG ===
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
@@ -55,7 +54,10 @@ def fetch_earnings_date(ticker):
         return "N/A"
 
 def build_html(data):
-    berlin_time = datetime.now(pytz.timezone('Europe/Berlin')).strftime("%B %d, %Y – %H:%M")
+    utc_now = datetime.now(timezone.utc)
+    berlin_offset = timedelta(hours=2)  # adjust to 1 hour in winter if needed
+    berlin_time = (utc_now + berlin_offset).strftime("%B %d, %Y – %H:%M")
+
     content = f"""
 <!DOCTYPE html>
 <html lang='en'>
