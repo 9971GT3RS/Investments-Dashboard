@@ -1,17 +1,18 @@
-# update_dashboard.py (mit RapidAPI Yahoo Finance)
+# update_dashboard.py (mit Yahoo Finance Kursdaten + echte News via FMP)
 import requests
 from datetime import datetime, timedelta
 
 # === CONFIG ===
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
-API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a" 
+YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
+FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"  # ✅ dein FMP API-Key
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
            "CRM", "NOW", "TSLA", "TSM", "SQ", "ILMN", "MU", "MRVL", "NKE", "RENK.DE",
            "XOM", "OXY", "UAA", "BABA", "XPEV"]
 
 HEADERS = {
-    "x-rapidapi-key": API_KEY,
+    "x-rapidapi-key": YAHOO_API_KEY,
     "x-rapidapi-host": "apidojo-yahoo-finance-v1.p.rapidapi.com"
 }
 
@@ -26,13 +27,17 @@ def fetch_stock_data():
         print("Error fetching stock data:", e)
         return None
 
-def fetch_dummy_news():
-    today = datetime.now()
-    last_week = today - timedelta(days=7)
-    return [
-        {"title": "Sample News Title", "date": today.strftime("%Y-%m-%d"), "summary": "Example summary from the past week."},
-        {"title": "Older News", "date": last_week.strftime("%Y-%m-%d"), "summary": "This would be deleted automatically."}
-    ]
+def fetch_news_fmp(ticker):
+    url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=5&apikey={FMP_API_KEY}"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        news_data = response.json()
+        one_week_ago = datetime.now() - timedelta(days=7)
+        return [n for n in news_data if datetime.strptime(n['publishedDate'], "%Y-%m-%d %H:%M:%S") >= one_week_ago]
+    except Exception as e:
+        print(f"News error for {ticker}:", e)
+        return []
 
 def build_html(data):
     now = datetime.now().strftime("%B %d, %Y – %H:%M")
@@ -57,10 +62,17 @@ def build_html(data):
             content += f"<h3>{name} ({symbol})</h3>"
             content += f"<p>Price: ${price} ({change_text})</p>"
             content += f"<p>Next earnings: [manual entry or API]</p>"
-            for news in fetch_dummy_news():
-                date = datetime.strptime(news['date'], "%Y-%m-%d")
-                if date >= datetime.now() - timedelta(days=7):
-                    content += f"<div>• {news['date']}: {news['title']} – {news['summary']}</div>"
+
+            news_items = fetch_news_fmp(symbol)
+            if news_items:
+                for news in news_items:
+                    title = news['title']
+                    date = news['publishedDate'].split(" ")[0]
+                    summary = news.get('text', '')
+                    url = news.get('url', '#')
+                    content += f"<div>• {date}: <a href='{url}' target='_blank'>{title}</a> – {summary}</div>"
+            else:
+                content += f"<div>• No recent news available.</div>"
 
     content += "</body></html>"
 
