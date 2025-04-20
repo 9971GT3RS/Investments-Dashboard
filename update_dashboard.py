@@ -1,32 +1,69 @@
-# update_dashboard.py (mit EUR-Kurs, Earnings-Fallback, News-Mapping, Alphabetisch sortiert)
+# update_dashboard.py (mit Newsdata.io für echte News, EUR & Earnings Fallback)
 import requests
 from datetime import datetime, timedelta, timezone
 
 # === CONFIG ===
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
-FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
+NEWSDATA_API_KEY = "pub_8178059be021e6dbfd5d7ad623f9f93f1a9f5"
 EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
            "CRM", "NOW", "TSLA", "TSM", "SQ", "ILMN", "MU", "MRVL", "NKE", "RENK.DE",
            "XOM", "OXY", "UAA", "BABA", "XPEV"]
 
-# Symbol-Mapping für News und Earnings
-TICKER_MAP = {
-    "RENK.DE": "RHM.DE",
-    "BABA": "BABA",
-    "XPEV": "XPEV",
-    "UAA": "UAA",
-    "ASML": "ASML.AS"
+COMPANY_NAMES = {
+    "META": "Meta Platforms",
+    "GOOGL": "Alphabet",
+    "AMZN": "Amazon",
+    "PYPL": "Paypal",
+    "NVDA": "Nvidia",
+    "AMD": "AMD",
+    "CRWD": "Crowdstrike",
+    "ASML": "ASML",
+    "MSFT": "Microsoft",
+    "CRM": "Salesforce",
+    "NOW": "ServiceNow",
+    "TSLA": "Tesla",
+    "TSM": "TSMC",
+    "SQ": "Block",
+    "ILMN": "Illumina",
+    "MU": "Micron",
+    "MRVL": "Marvell",
+    "NKE": "Nike",
+    "RENK.DE": "Renk",
+    "XOM": "ExxonMobil",
+    "OXY": "Occidental",
+    "UAA": "Under Armour",
+    "BABA": "Alibaba",
+    "XPEV": "Xpeng"
 }
 
-# Manuelle Earnings-Fallbacks
 EARNINGS_FALLBACK = {
+    "META": "2024-04-24",
+    "GOOGL": "2024-04-23",
+    "AMZN": "2024-04-25",
+    "PYPL": "2024-05-01",
+    "NVDA": "2024-05-22",
+    "AMD": "2024-04-30",
+    "CRWD": "2024-06-01",
+    "ASML": "2024-04-17",
+    "MSFT": "2024-04-25",
+    "CRM": "2024-06-05",
+    "NOW": "2024-04-24",
+    "TSLA": "2024-04-23",
+    "TSM": "2024-04-18",
+    "SQ": "2024-05-02",
+    "ILMN": "2024-05-07",
+    "MU": "2024-06-20",
+    "MRVL": "2024-06-05",
+    "NKE": "2024-06-27",
     "RENK.DE": "2024-08-12",
-    "XPEV": "2024-05-20",
+    "XOM": "2024-04-26",
+    "OXY": "2024-05-08",
+    "UAA": "2024-05-09",
     "BABA": "2024-05-15",
-    "UAA": "2024-05-09"
+    "XPEV": "2024-05-20"
 }
 
 HEADERS = {
@@ -44,37 +81,17 @@ def fetch_stock_data():
         print("Error fetching stock data:", e)
         return []
 
-def fetch_news_fmp(ticker):
-    symbol = TICKER_MAP.get(ticker, ticker)
-    url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={symbol}&limit=3&apikey={FMP_API_KEY}"
+def fetch_news_newsdata(company_name):
     try:
+        date_from = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+        url = f"https://newsdata.io/api/1/news?apikey={NEWSDATA_API_KEY}&q={company_name}&language=en&from_date={date_from}&category=business"
         response = requests.get(url)
         response.raise_for_status()
-        news_data = response.json()
-        one_week_ago = datetime.now() - timedelta(days=7)
-        return [n for n in news_data if datetime.strptime(n['publishedDate'], "%Y-%m-%d %H:%M:%S") >= one_week_ago]
+        articles = response.json().get("results", [])
+        return articles[:3] if articles else []
     except Exception as e:
-        print(f"News error for {ticker}:", e)
+        print(f"Newsdata error for {company_name}:", e)
         return []
-
-def fetch_all_earnings():
-    today = datetime.today().strftime("%Y-%m-%d")
-    future = (datetime.today() + timedelta(days=120)).strftime("%Y-%m-%d")
-    url = f"https://financialmodelingprep.com/api/v3/earning_calendar?from={today}&to={future}&apikey={FMP_API_KEY}"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        print("Earnings calendar error:", e)
-        return []
-
-def get_earnings_for_ticker(ticker, earnings_data):
-    mapped = TICKER_MAP.get(ticker, ticker).upper()
-    for entry in earnings_data:
-        if entry['symbol'].upper() == mapped:
-            return entry.get('date', EARNINGS_FALLBACK.get(ticker, 'N/A'))
-    return EARNINGS_FALLBACK.get(ticker, "N/A (not found)")
 
 def fetch_usd_to_eur():
     try:
@@ -100,21 +117,19 @@ def build_html(data):
 <p>Last updated: {berlin_time} (Berlin Time)</p>
 """
 
-    earnings_data = fetch_all_earnings()
     exchange_rate = fetch_usd_to_eur()
-
     if exchange_rate is None:
         content += "<p><strong style='color:red;'>⚠️ EUR conversion unavailable (API error)</strong></p>"
 
     sorted_data = sorted(data, key=lambda x: x.get('shortName', x.get('symbol', '')))
 
     for item in sorted_data:
-        name = item.get('shortName') or item.get('symbol', 'N/A')
         symbol = item.get('symbol', 'N/A')
+        name = item.get('shortName') or symbol
         price_usd = item.get('regularMarketPrice', 'N/A')
         change = item.get('regularMarketChangePercent')
         change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
-        earnings_date = get_earnings_for_ticker(symbol, earnings_data)
+        earnings_date = EARNINGS_FALLBACK.get(symbol, 'N/A')
 
         if isinstance(price_usd, (int, float)) and exchange_rate:
             price_eur = price_usd * exchange_rate
@@ -126,14 +141,14 @@ def build_html(data):
         content += f"<p>Price: ${price_usd} ({change_text}){eur_display}</p>"
         content += f"<p>Next earnings: {earnings_date}</p>"
 
-        news_items = fetch_news_fmp(symbol)
+        company_name = COMPANY_NAMES.get(symbol, name)
+        news_items = fetch_news_newsdata(company_name)
         if news_items:
             for news in news_items:
-                title = news['title']
-                date = news['publishedDate'].split(" ")[0]
-                summary = news.get('text', '')
-                url = news.get('url', '#')
-                content += f"<div>• {date}: <a href='{url}' target='_blank'>{title}</a> – {summary}</div>"
+                date = news.get('pubDate', '').split("T")[0]
+                title = news.get('title', '')
+                url = news.get('link', '#')
+                content += f"<div>• {date}: <a href='{url}' target='_blank'>{title}</a></div>"
         else:
             content += f"<div>• No recent news available.</div>"
 
