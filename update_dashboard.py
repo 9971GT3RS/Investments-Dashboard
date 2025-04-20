@@ -1,4 +1,4 @@
-# update_dashboard.py (mit Debug-Infos für Earnings und EUR-Kurs)
+# update_dashboard.py (mit EUR-Kurs, Earnings-Fallback, News-Mapping, Alphabetisch sortiert)
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -6,18 +6,34 @@ from datetime import datetime, timedelta, timezone
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
 FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
-EXCHANGE_RATE_API = "https://api.exchangerate.host/latest?base=USD&symbols=EUR"
+EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
            "CRM", "NOW", "TSLA", "TSM", "SQ", "ILMN", "MU", "MRVL", "NKE", "RENK.DE",
            "XOM", "OXY", "UAA", "BABA", "XPEV"]
+
+# Symbol-Mapping für News und Earnings
+TICKER_MAP = {
+    "RENK.DE": "RHM.DE",
+    "BABA": "BABA",
+    "XPEV": "XPEV",
+    "UAA": "UAA",
+    "ASML": "ASML.AS"
+}
+
+# Manuelle Earnings-Fallbacks
+EARNINGS_FALLBACK = {
+    "RENK.DE": "2024-08-12",
+    "XPEV": "2024-05-20",
+    "BABA": "2024-05-15",
+    "UAA": "2024-05-09"
+}
 
 HEADERS = {
     "x-rapidapi-key": YAHOO_API_KEY,
     "x-rapidapi-host": "apidojo-yahoo-finance-v1.p.rapidapi.com"
 }
 
-# === FUNCTIONS ===
 def fetch_stock_data():
     try:
         params = {"symbols": ",".join(TICKERS), "region": "US"}
@@ -26,10 +42,11 @@ def fetch_stock_data():
         return response.json().get("quoteResponse", {}).get("result", [])
     except Exception as e:
         print("Error fetching stock data:", e)
-        return None
+        return []
 
 def fetch_news_fmp(ticker):
-    url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=5&apikey={FMP_API_KEY}"
+    symbol = TICKER_MAP.get(ticker, ticker)
+    url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={symbol}&limit=3&apikey={FMP_API_KEY}"
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -53,11 +70,11 @@ def fetch_all_earnings():
         return []
 
 def get_earnings_for_ticker(ticker, earnings_data):
-    normalized = ticker.upper().replace(".DE", "")
+    mapped = TICKER_MAP.get(ticker, ticker).upper()
     for entry in earnings_data:
-        if entry['symbol'].upper().replace(".DE", "") == normalized:
-            return entry.get('date', 'N/A')
-    return "N/A (not found in earnings calendar)"
+        if entry['symbol'].upper() == mapped:
+            return entry.get('date', EARNINGS_FALLBACK.get(ticker, 'N/A'))
+    return EARNINGS_FALLBACK.get(ticker, "N/A (not found)")
 
 def fetch_usd_to_eur():
     try:
@@ -89,37 +106,36 @@ def build_html(data):
     if exchange_rate is None:
         content += "<p><strong style='color:red;'>⚠️ EUR conversion unavailable (API error)</strong></p>"
 
-    if not data:
-        content += "<p><strong style='color:red;'>⚠️ Could not load stock data. Please check your API key or limits.</strong></p>"
-    else:
-        for item in data:
-            name = item.get('shortName') or item.get('symbol', 'N/A')
-            symbol = item.get('symbol', 'N/A')
-            price_usd = item.get('regularMarketPrice', 'N/A')
-            change = item.get('regularMarketChangePercent')
-            change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
-            earnings_date = get_earnings_for_ticker(symbol, earnings_data)
+    sorted_data = sorted(data, key=lambda x: x.get('shortName', x.get('symbol', '')))
 
-            if isinstance(price_usd, (int, float)) and exchange_rate:
-                price_eur = price_usd * exchange_rate
-                eur_display = f" / €{price_eur:.2f}"
-            else:
-                eur_display = " (EUR unavailable)"
+    for item in sorted_data:
+        name = item.get('shortName') or item.get('symbol', 'N/A')
+        symbol = item.get('symbol', 'N/A')
+        price_usd = item.get('regularMarketPrice', 'N/A')
+        change = item.get('regularMarketChangePercent')
+        change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
+        earnings_date = get_earnings_for_ticker(symbol, earnings_data)
 
-            content += f"<h3>{name} ({symbol})</h3>"
-            content += f"<p>Price: ${price_usd} ({change_text}){eur_display}</p>"
-            content += f"<p>Next earnings: {earnings_date}</p>"
+        if isinstance(price_usd, (int, float)) and exchange_rate:
+            price_eur = price_usd * exchange_rate
+            eur_display = f" / €{price_eur:.2f}"
+        else:
+            eur_display = " (EUR unavailable)"
 
-            news_items = fetch_news_fmp(symbol)
-            if news_items:
-                for news in news_items:
-                    title = news['title']
-                    date = news['publishedDate'].split(" ")[0]
-                    summary = news.get('text', '')
-                    url = news.get('url', '#')
-                    content += f"<div>• {date}: <a href='{url}' target='_blank'>{title}</a> – {summary}</div>"
-            else:
-                content += f"<div>• No recent news available.</div>"
+        content += f"<h3>{name} ({symbol})</h3>"
+        content += f"<p>Price: ${price_usd} ({change_text}){eur_display}</p>"
+        content += f"<p>Next earnings: {earnings_date}</p>"
+
+        news_items = fetch_news_fmp(symbol)
+        if news_items:
+            for news in news_items:
+                title = news['title']
+                date = news['publishedDate'].split(" ")[0]
+                summary = news.get('text', '')
+                url = news.get('url', '#')
+                content += f"<div>• {date}: <a href='{url}' target='_blank'>{title}</a> – {summary}</div>"
+        else:
+            content += f"<div>• No recent news available.</div>"
 
     content += "</body></html>"
 
