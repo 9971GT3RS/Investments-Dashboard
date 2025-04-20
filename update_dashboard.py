@@ -1,4 +1,4 @@
-# update_dashboard.py (mit Yahoo Finance Kursdaten + echte News via FMP)
+# update_dashboard.py (mit Yahoo Finance Kursdaten + echte News + Earnings via FMP)
 import requests
 from datetime import datetime, timedelta
 import pytz
@@ -40,6 +40,20 @@ def fetch_news_fmp(ticker):
         print(f"News error for {ticker}:", e)
         return []
 
+def fetch_earnings_date(ticker):
+    url = f"https://financialmodelingprep.com/api/v3/earning_calendar/{ticker}?limit=1&apikey={FMP_API_KEY}"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        if data and 'date' in data[0]:
+            return data[0]['date']
+        else:
+            return "N/A"
+    except Exception as e:
+        print(f"Earnings error for {ticker}:", e)
+        return "N/A"
+
 def build_html(data):
     berlin_time = datetime.now(pytz.timezone('Europe/Berlin')).strftime("%B %d, %Y – %H:%M")
     content = f"""
@@ -60,9 +74,10 @@ def build_html(data):
             price = item.get('regularMarketPrice', 'N/A')
             change = item.get('regularMarketChangePercent')
             change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
+            earnings_date = fetch_earnings_date(symbol)
             content += f"<h3>{name} ({symbol})</h3>"
             content += f"<p>Price: ${price} ({change_text})</p>"
-            content += f"<p>Next earnings: [manual entry or API]</p>"
+            content += f"<p>Next earnings: {earnings_date}</p>"
 
             news_items = fetch_news_fmp(symbol)
             if news_items:
