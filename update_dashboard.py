@@ -1,11 +1,12 @@
 # update_dashboard.py (mit Yahoo Finance Kursdaten + echte News via FMP)
 import requests
 from datetime import datetime, timedelta
+import pytz
 
 # === CONFIG ===
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
-FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"  # ✅ dein FMP API-Key
+FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
            "CRM", "NOW", "TSLA", "TSM", "SQ", "ILMN", "MU", "MRVL", "NKE", "RENK.DE",
@@ -40,14 +41,14 @@ def fetch_news_fmp(ticker):
         return []
 
 def build_html(data):
-    now = datetime.now().strftime("%B %d, %Y – %H:%M")
+    berlin_time = datetime.now(pytz.timezone('Europe/Berlin')).strftime("%B %d, %Y – %H:%M")
     content = f"""
 <!DOCTYPE html>
 <html lang='en'>
 <head><meta charset='UTF-8'><title>Market Dashboard</title></head>
 <body>
 <h1>Market News Dashboard</h1>
-<p>Last updated: {now}</p>
+<p>Last updated: {berlin_time} (Berlin Time)</p>
 """
 
     if not data:
