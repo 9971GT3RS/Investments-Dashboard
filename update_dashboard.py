@@ -1,4 +1,4 @@
-# update_dashboard.py (mit Newsdata.io für echte News, EUR & Earnings Fallback)
+# update_dashboard.py (mit neuen Werten & verbessertem News-Suchverhalten)
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -9,8 +9,9 @@ NEWSDATA_API_KEY = "pub_8178059be021e6dbfd5d7ad623f9f93f1a9f5"
 EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
-           "CRM", "NOW", "TSLA", "TSM", "SQ", "ILMN", "MU", "MRVL", "NKE", "RENK.DE",
-           "XOM", "OXY", "UAA", "BABA", "XPEV"]
+           "CRM", "NOW", "TSLA", "TSM", "SQ", "XYZ", "ILMN", "MU", "MRVL", "NKE",
+           "RNKGF", "RNMBF", "PLTR", "XOM", "OXY", "UAA", "BABA", "XPEV",
+           "^GSPC", "^NDX", "BTC-USD", "ETH-USD"]
 
 COMPANY_NAMES = {
     "META": "Meta Platforms",
@@ -18,25 +19,32 @@ COMPANY_NAMES = {
     "AMZN": "Amazon",
     "PYPL": "Paypal",
     "NVDA": "Nvidia",
-    "AMD": "AMD",
+    "AMD": "Advanced Micro Devices",
     "CRWD": "Crowdstrike",
-    "ASML": "ASML",
+    "ASML": "ASML Holding",
     "MSFT": "Microsoft",
     "CRM": "Salesforce",
     "NOW": "ServiceNow",
     "TSLA": "Tesla",
-    "TSM": "TSMC",
-    "SQ": "Block",
+    "TSM": "Taiwan Semiconductor",
+    "SQ": "Block Inc",
+    "XYZ": "Block Inc",
     "ILMN": "Illumina",
-    "MU": "Micron",
-    "MRVL": "Marvell",
+    "MU": "Micron Technology",
+    "MRVL": "Marvell Technology",
     "NKE": "Nike",
-    "RENK.DE": "Renk",
+    "RNKGF": "Renk",
+    "RNMBF": "Rheinmetall",
+    "PLTR": "Palantir",
     "XOM": "ExxonMobil",
-    "OXY": "Occidental",
+    "OXY": "Occidental Petroleum",
     "UAA": "Under Armour",
     "BABA": "Alibaba",
-    "XPEV": "Xpeng"
+    "XPEV": "Xpeng",
+    "^GSPC": "S&P 500",
+    "^NDX": "Nasdaq 100",
+    "BTC-USD": "Bitcoin",
+    "ETH-USD": "Ethereum"
 }
 
 EARNINGS_FALLBACK = {
@@ -54,11 +62,14 @@ EARNINGS_FALLBACK = {
     "TSLA": "2024-04-23",
     "TSM": "2024-04-18",
     "SQ": "2024-05-02",
+    "XYZ": "2024-05-02",
     "ILMN": "2024-05-07",
     "MU": "2024-06-20",
     "MRVL": "2024-06-05",
     "NKE": "2024-06-27",
-    "RENK.DE": "2024-08-12",
+    "RNKGF": "2024-08-12",
+    "RNMBF": "2024-05-08",
+    "PLTR": "2024-05-06",
     "XOM": "2024-04-26",
     "OXY": "2024-05-08",
     "UAA": "2024-05-09",
@@ -84,7 +95,7 @@ def fetch_stock_data():
 def fetch_news_newsdata(company_name):
     try:
         date_from = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-        url = f"https://newsdata.io/api/1/news?apikey={NEWSDATA_API_KEY}&q={company_name}&language=en&from_date={date_from}&category=business"
+        url = f"https://newsdata.io/api/1/news?apikey={NEWSDATA_API_KEY}&q={company_name}&language=en&from_date={date_from}"
         response = requests.get(url)
         response.raise_for_status()
         articles = response.json().get("results", [])
@@ -102,6 +113,13 @@ def fetch_usd_to_eur():
     except Exception as e:
         print("Exchange rate error:", e)
         return None
+
+def format_date_german(date_str):
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        return dt.strftime("%d.%m.%Y")
+    except:
+        return date_str
 
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
@@ -129,7 +147,8 @@ def build_html(data):
         price_usd = item.get('regularMarketPrice', 'N/A')
         change = item.get('regularMarketChangePercent')
         change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
-        earnings_date = EARNINGS_FALLBACK.get(symbol, 'N/A')
+        earnings_raw = EARNINGS_FALLBACK.get(symbol, 'N/A')
+        earnings_date = format_date_german(earnings_raw)
 
         if isinstance(price_usd, (int, float)) and exchange_rate:
             price_eur = price_usd * exchange_rate
@@ -148,7 +167,7 @@ def build_html(data):
                 date = news.get('pubDate', '').split("T")[0]
                 title = news.get('title', '')
                 url = news.get('link', '#')
-                content += f"<div>• {date}: <a href='{url}' target='_blank'>{title}</a></div>"
+                content += f"<div>• {format_date_german(date)}: <a href='{url}' target='_blank'>{title}</a></div>"
         else:
             content += f"<div>• No recent news available.</div>"
 
