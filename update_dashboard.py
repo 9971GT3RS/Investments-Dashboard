@@ -1,4 +1,4 @@
-# update_dashboard.py (mit Earnings-Fix & EUR-Preisen)
+# update_dashboard.py (mit Debug-Infos für Earnings und EUR-Kurs)
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -57,7 +57,7 @@ def get_earnings_for_ticker(ticker, earnings_data):
     for entry in earnings_data:
         if entry['symbol'].upper().replace(".DE", "") == normalized:
             return entry.get('date', 'N/A')
-    return "N/A"
+    return "N/A (not found in earnings calendar)"
 
 def fetch_usd_to_eur():
     try:
@@ -86,6 +86,9 @@ def build_html(data):
     earnings_data = fetch_all_earnings()
     exchange_rate = fetch_usd_to_eur()
 
+    if exchange_rate is None:
+        content += "<p><strong style='color:red;'>⚠️ EUR conversion unavailable (API error)</strong></p>"
+
     if not data:
         content += "<p><strong style='color:red;'>⚠️ Could not load stock data. Please check your API key or limits.</strong></p>"
     else:
@@ -101,7 +104,7 @@ def build_html(data):
                 price_eur = price_usd * exchange_rate
                 eur_display = f" / €{price_eur:.2f}"
             else:
-                eur_display = ""
+                eur_display = " (EUR unavailable)"
 
             content += f"<h3>{name} ({symbol})</h3>"
             content += f"<p>Price: ${price_usd} ({change_text}){eur_display}</p>"
