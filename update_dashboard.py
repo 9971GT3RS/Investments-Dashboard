@@ -1,4 +1,4 @@
-# update_dashboard.py (robust ohne pytz, mit Earnings und News)
+# update_dashboard.py (mit verbessertem Earnings-Check über FMP Bulk-API)
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -39,23 +39,27 @@ def fetch_news_fmp(ticker):
         print(f"News error for {ticker}:", e)
         return []
 
-def fetch_earnings_date(ticker):
-    url = f"https://financialmodelingprep.com/api/v3/earning_calendar/{ticker}?limit=1&apikey={FMP_API_KEY}"
+def fetch_all_earnings():
+    today = datetime.today().strftime("%Y-%m-%d")
+    future = (datetime.today() + timedelta(days=120)).strftime("%Y-%m-%d")
+    url = f"https://financialmodelingprep.com/api/v3/earning_calendar?from={today}&to={future}&apikey={FMP_API_KEY}"
     try:
         response = requests.get(url)
         response.raise_for_status()
-        data = response.json()
-        if data and 'date' in data[0]:
-            return data[0]['date']
-        else:
-            return "N/A"
+        return response.json()
     except Exception as e:
-        print(f"Earnings error for {ticker}:", e)
-        return "N/A"
+        print("Earnings calendar error:", e)
+        return []
+
+def get_earnings_for_ticker(ticker, earnings_data):
+    for entry in earnings_data:
+        if entry['symbol'].upper() == ticker.upper():
+            return entry.get('date', 'N/A')
+    return "N/A"
 
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
-    berlin_offset = timedelta(hours=2)  # adjust to 1 hour in winter if needed
+    berlin_offset = timedelta(hours=2)
     berlin_time = (utc_now + berlin_offset).strftime("%B %d, %Y – %H:%M")
 
     content = f"""
@@ -67,6 +71,8 @@ def build_html(data):
 <p>Last updated: {berlin_time} (Berlin Time)</p>
 """
 
+    earnings_data = fetch_all_earnings()
+
     if not data:
         content += "<p><strong style='color:red;'>⚠️ Could not load stock data. Please check your API key or limits.</strong></p>"
     else:
@@ -76,7 +82,7 @@ def build_html(data):
             price = item.get('regularMarketPrice', 'N/A')
             change = item.get('regularMarketChangePercent')
             change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
-            earnings_date = fetch_earnings_date(symbol)
+            earnings_date = get_earnings_for_ticker(symbol, earnings_data)
             content += f"<h3>{name} ({symbol})</h3>"
             content += f"<p>Price: ${price} ({change_text})</p>"
             content += f"<p>Next earnings: {earnings_date}</p>"
