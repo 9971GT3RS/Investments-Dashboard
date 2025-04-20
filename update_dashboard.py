@@ -1,4 +1,4 @@
-# update_dashboard.py (mit verbessertem Earnings-Check über FMP Bulk-API)
+# update_dashboard.py (mit Earnings-Fix & EUR-Preisen)
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
 FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
+EXCHANGE_RATE_API = "https://api.exchangerate.host/latest?base=USD&symbols=EUR"
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
            "CRM", "NOW", "TSLA", "TSM", "SQ", "ILMN", "MU", "MRVL", "NKE", "RENK.DE",
@@ -52,10 +53,21 @@ def fetch_all_earnings():
         return []
 
 def get_earnings_for_ticker(ticker, earnings_data):
+    normalized = ticker.upper().replace(".DE", "")
     for entry in earnings_data:
-        if entry['symbol'].upper() == ticker.upper():
+        if entry['symbol'].upper().replace(".DE", "") == normalized:
             return entry.get('date', 'N/A')
     return "N/A"
+
+def fetch_usd_to_eur():
+    try:
+        response = requests.get(EXCHANGE_RATE_API)
+        response.raise_for_status()
+        data = response.json()
+        return data['rates']['EUR']
+    except Exception as e:
+        print("Exchange rate error:", e)
+        return None
 
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
@@ -72,6 +84,7 @@ def build_html(data):
 """
 
     earnings_data = fetch_all_earnings()
+    exchange_rate = fetch_usd_to_eur()
 
     if not data:
         content += "<p><strong style='color:red;'>⚠️ Could not load stock data. Please check your API key or limits.</strong></p>"
@@ -79,12 +92,19 @@ def build_html(data):
         for item in data:
             name = item.get('shortName') or item.get('symbol', 'N/A')
             symbol = item.get('symbol', 'N/A')
-            price = item.get('regularMarketPrice', 'N/A')
+            price_usd = item.get('regularMarketPrice', 'N/A')
             change = item.get('regularMarketChangePercent')
             change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
             earnings_date = get_earnings_for_ticker(symbol, earnings_data)
+
+            if isinstance(price_usd, (int, float)) and exchange_rate:
+                price_eur = price_usd * exchange_rate
+                eur_display = f" / €{price_eur:.2f}"
+            else:
+                eur_display = ""
+
             content += f"<h3>{name} ({symbol})</h3>"
-            content += f"<p>Price: ${price} ({change_text})</p>"
+            content += f"<p>Price: ${price_usd} ({change_text}){eur_display}</p>"
             content += f"<p>Next earnings: {earnings_date}</p>"
 
             news_items = fetch_news_fmp(symbol)
