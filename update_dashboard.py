@@ -1,11 +1,11 @@
-# update_dashboard.py (mit sichtbarer News-Debug-Ausgabe im HTML)
+# update_dashboard.py (mit GNews API für zuverlässige Finanznachrichten)
 import requests
 from datetime import datetime, timedelta, timezone
 
 # === CONFIG ===
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
-NEWSDATA_API_KEY = "pub_8178059be021e6dbfd5d7ad623f9f93f1a9f5"
+GNEWS_API_KEY = "83df462ceeaf456d4d178309ca672e41"
 EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
 
 TICKERS = ["META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT",
@@ -92,17 +92,16 @@ def fetch_stock_data():
         print("Error fetching stock data:", e)
         return []
 
-def fetch_news_newsdata(company_name):
+def fetch_news_gnews(company_name):
     try:
-        date_from = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-        url = f"https://newsdata.io/api/1/news?apikey={NEWSDATA_API_KEY}&q={company_name}&language=en&from_date={date_from}"
+        url = f"https://gnews.io/api/v4/search?q=\"{company_name}\"&token={GNEWS_API_KEY}&lang=en&max=3"
         response = requests.get(url)
         response.raise_for_status()
-        articles = response.json().get("results", [])
-        return articles[:3], url, len(articles)
+        articles = response.json().get("articles", [])
+        return articles
     except Exception as e:
-        print(f"Newsdata error for {company_name}:", e)
-        return [], "", 0
+        print(f"GNews error for {company_name}:", e)
+        return []
 
 def fetch_usd_to_eur():
     try:
@@ -116,7 +115,7 @@ def fetch_usd_to_eur():
 
 def format_date_german(date_str):
     try:
-        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
         return dt.strftime("%d.%m.%Y")
     except:
         return date_str
@@ -161,15 +160,14 @@ def build_html(data):
         content += f"<p>Next earnings: {earnings_date}</p>"
 
         company_name = COMPANY_NAMES.get(symbol, name)
-        news_items, url_debug, count_debug = fetch_news_newsdata(company_name)
-        content += f"<div><em>🔍 Suche nach: '{company_name}' → {count_debug} Ergebnisse</em></div>"
-
+        news_items = fetch_news_gnews(company_name)
         if news_items:
             for news in news_items:
-                date = news.get('pubDate', '').split("T")[0]
+                date = format_date_german(news.get('publishedAt', ''))
                 title = news.get('title', '')
-                url = news.get('link', '#')
-                content += f"<div>• {format_date_german(date)}: <a href='{url}' target='_blank'>{title}</a></div>"
+                url = news.get('url', '#')
+                source = news.get('source', {}).get('name', '')
+                content += f"<div>• {date} ({source}): <a href='{url}' target='_blank'>{title}</a></div>"
         else:
             content += f"<div>• No recent news available.</div>"
 
