@@ -1,4 +1,4 @@
-# update_dashboard.py (mit Beispiel-Chart für Kursentwicklung)
+# update_dashboard.py (mit abgesichertem Chart-Fetching und Fehlerbehandlung)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -11,29 +11,46 @@ EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
 CHART_API_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
 
 TICKERS = ["META", "TSLA"]
-
-# Beispiel-Fokus: Nur META & TSLA für Charts
 CHART_ENABLED_TICKERS = ["META", "TSLA"]
 
-# ... (COMPANY_NAMES, EARNINGS_FALLBACK, HEADERS gleich wie vorher)
+HEADERS = {
+    "x-rapidapi-key": YAHOO_API_KEY,
+    "x-rapidapi-host": "apidojo-yahoo-finance-v1.p.rapidapi.com"
+}
 
+def fetch_stock_data():
+    try:
+        params = {"symbols": ",".join(TICKERS), "region": "US"}
+        response = requests.get(YAHOO_API_URL, headers=HEADERS, params=params)
+        response.raise_for_status()
+        return response.json().get("quoteResponse", {}).get("result", [])
+    except Exception as e:
+        print("Error fetching stock data:", e)
+        return []
 
 def fetch_chart_data(ticker):
     try:
         url = f"{CHART_API_BASE}{ticker}?range=30d&interval=1d"
-        response = requests.get(url)
+        headers = {"User-Agent": "Mozilla/5.0"}  # Yahoo blockt Requests ohne UA
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
-        chart = response.json()["chart"]["result"][0]
-        timestamps = chart["timestamp"]
-        prices = chart["indicators"]["quote"][0]["close"]
-        dates = [datetime.utcfromtimestamp(ts).strftime("%d.%m") for ts in timestamps]
+        result = response.json()["chart"]["result"]
+        if not result:
+            return [], []
+        chart = result[0]
+        timestamps = chart.get("timestamp")
+        prices = chart.get("indicators", {}).get("quote", [{}])[0].get("close")
+        if not timestamps or not prices:
+            return [], []
+        dates = [datetime.utcfromtimestamp(ts).strftime("%d.%m") for ts in timestamps if ts]
+        prices = [p for p in prices if p is not None]
+        if len(dates) != len(prices):
+            min_len = min(len(dates), len(prices))
+            dates, prices = dates[:min_len], prices[:min_len]
         return dates, prices
     except Exception as e:
         print(f"Chart data error for {ticker}:", e)
         return [], []
-
-# ... (restliche Funktionen wie fetch_stock_data, fetch_news_gnews, etc.)
-
 
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
@@ -53,7 +70,11 @@ def build_html(data):
 <p>Last updated: {berlin_time} (Berlin Time)</p>
 """
 
-    exchange_rate = fetch_usd_to_eur()
+    exchange_rate = 1.0
+    try:
+        exchange_rate = requests.get(EXCHANGE_RATE_API).json()['rates']['EUR']
+    except:
+        content += "<p style='color:red;'>⚠️ EUR conversion failed</p>"
 
     for item in data:
         symbol = item.get('symbol', 'N/A')
@@ -61,59 +82,32 @@ def build_html(data):
         price_usd = item.get('regularMarketPrice', 'N/A')
         change = item.get('regularMarketChangePercent')
         change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
-        earnings_raw = "2024-04-24"
-        earnings_date = earnings_raw
+        earnings_date = "24.04.2024"
 
-        eur_display = ""
-        if isinstance(price_usd, (int, float)) and exchange_rate:
-            price_eur = price_usd * exchange_rate
-            eur_display = f" / €{price_eur:.2f}"
+        price_eur = float(price_usd) * exchange_rate if isinstance(price_usd, (int, float)) else "N/A"
 
         content += f"<h3>{name} ({symbol})</h3>"
-        content += f"<p>Price: ${price_usd} ({change_text}){eur_display}</p>"
+        content += f"<p>Price: ${price_usd} ({change_text}) / €{price_eur:.2f}</p>"
         content += f"<p>Next earnings: {earnings_date}</p>"
 
-        # === News ===
-        news_items = fetch_news_gnews(name)
-        if news_items:
-            for news in news_items:
-                date = news.get('publishedAt', '')[:10]
-                title = news.get('title', '')
-                url = news.get('url', '#')
-                source = news.get('source', {}).get('name', '')
-                content += f"<div>• {date} ({source}): <a href='{url}' target='_blank'>{title}</a></div>"
-        else:
-            content += f"<div>• No recent news available.</div>"
-
-        # === Chart ===
         if symbol in CHART_ENABLED_TICKERS:
             dates, prices = fetch_chart_data(symbol)
-            chart_id = f"chart_{symbol}"
-            content += f"<canvas id='{chart_id}' width='400' height='150'></canvas>"
-            content += f"<script>new Chart(document.getElementById('{chart_id}').getContext('2d'), {{
-                type: 'line',
-                data: {{
-                    labels: {json.dumps(dates)},
-                    datasets: [{{
-                        label: 'Price (USD)',
-                        data: {json.dumps(prices)},
-                        fill: false,
-                        borderColor: 'blue',
-                        tension: 0.1
-                    }}]
-                }},
-                options: {{
-                    responsive: true,
-                    plugins: {{ legend: {{ display: false }} }}
-                }}
-            }});</script>"
+            if dates and prices:
+                chart_id = f"chart_{symbol}"
+                content += f"<canvas id='{chart_id}' width='400' height='150'></canvas>"
+                content += f"<script>new Chart(document.getElementById('{chart_id}').getContext('2d'), {{
+                    type: 'line',
+                    data: {{ labels: {json.dumps(dates)}, datasets: [{{ label: 'USD', data: {json.dumps(prices)}, fill: false, borderColor: 'blue', tension: 0.1 }}] }},
+                    options: {{ responsive: true, plugins: {{ legend: {{ display: false }} }} }}
+                }});</script>"
+            else:
+                content += f"<p style='color:orange;'>Chart data not available for {symbol}</p>"
 
     content += "</body></html>"
 
     with open("boersen-dashboard.html", "w", encoding="utf-8") as f:
         f.write(content)
 
-# === MAIN ===
 if __name__ == "__main__":
     stock_data = fetch_stock_data()
     build_html(stock_data)
