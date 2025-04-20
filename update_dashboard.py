@@ -1,4 +1,4 @@
-# update_dashboard.py (mit neuen Werten & verbessertem News-Suchverhalten)
+# update_dashboard.py (mit sichtbarer News-Debug-Ausgabe im HTML)
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -99,10 +99,10 @@ def fetch_news_newsdata(company_name):
         response = requests.get(url)
         response.raise_for_status()
         articles = response.json().get("results", [])
-        return articles[:3] if articles else []
+        return articles[:3], url, len(articles)
     except Exception as e:
         print(f"Newsdata error for {company_name}:", e)
-        return []
+        return [], "", 0
 
 def fetch_usd_to_eur():
     try:
@@ -161,7 +161,9 @@ def build_html(data):
         content += f"<p>Next earnings: {earnings_date}</p>"
 
         company_name = COMPANY_NAMES.get(symbol, name)
-        news_items = fetch_news_newsdata(company_name)
+        news_items, url_debug, count_debug = fetch_news_newsdata(company_name)
+        content += f"<div><em>🔍 Suche nach: '{company_name}' → {count_debug} Ergebnisse</em></div>"
+
         if news_items:
             for news in news_items:
                 date = news.get('pubDate', '').split("T")[0]
