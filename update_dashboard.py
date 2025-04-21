@@ -1,4 +1,4 @@
-# update_dashboard.py (komplett: Ticker + Gruppen + News mit Cache)
+# update_dashboard.py (mit echten Earnings-Terminen + News-Overrides für bessere Treffer)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -10,6 +10,7 @@ YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
 GNEWS_API_KEY = "83df462ceeaf456d4d178309ca672e41"
 EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
 GNEWS_API_URL = "https://gnews.io/api/v4/search"
+EARNINGS_API = "https://financialmodelingprep.com/api/v3/earning_calendar"
 
 GROUPS = {
     "Shares": [
@@ -18,6 +19,39 @@ GROUPS = {
     ],
     "Indices": ["^GSPC", "^NDX"],
     "Crypto": ["BTC-USD", "ETH-USD"]
+}
+
+NEWS_QUERY_OVERRIDES = {
+    "META": "Meta Platforms",
+    "GOOGL": "Alphabet",
+    "AMZN": "Amazon",
+    "PYPL": "Paypal",
+    "NVDA": "Nvidia",
+    "AMD": "AMD",
+    "CRWD": "Crowdstrike",
+    "ASML": "ASML Holding",
+    "MSFT": "Microsoft",
+    "CRM": "Salesforce",
+    "NOW": "ServiceNow",
+    "TSLA": "Tesla",
+    "TSM": "Taiwan Semiconductor",
+    "SQ": "Block Inc",
+    "ILMN": "Illumina",
+    "MU": "Micron Technology",
+    "MRVL": "Marvell",
+    "NKE": "Nike",
+    "RNKGF": "Renk",
+    "XOM": "Exxon",
+    "OXY": "Occidental Petroleum",
+    "UAA": "Under Armour",
+    "BABA": "Alibaba",
+    "XPEV": "XPeng",
+    "RNMBF": "Rheinmetall",
+    "PLTR": "Palantir",
+    "^GSPC": "S&P 500",
+    "^NDX": "Nasdaq 100",
+    "BTC-USD": "Bitcoin",
+    "ETH-USD": "Ethereum"
 }
 
 ALL_TICKERS = GROUPS["Shares"] + GROUPS["Indices"] + GROUPS["Crypto"]
@@ -60,6 +94,17 @@ def fetch_news(query):
         print(f"News error for {query}:", e)
         return []
 
+def fetch_earnings_dates():
+    try:
+        url = f"{EARNINGS_API}?apikey={FMP_API_KEY}&limit=1000"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return {item['symbol']: datetime.strptime(item['date'], "%Y-%m-%d").strftime("%d.%m.%Y") for item in data}
+    except Exception as e:
+        print("Earnings fetch error:", e)
+        return {}
+
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
     berlin_offset = timedelta(hours=2)
@@ -84,6 +129,7 @@ def build_html(data):
         content += "<p style='color:red;'>⚠️ EUR conversion failed</p>"
 
     data_by_symbol = {item.get('symbol'): item for item in data}
+    earnings_map = fetch_earnings_dates()
 
     for group_name, tickers in GROUPS.items():
         content += f"<h2>{group_name}</h2>"
@@ -95,7 +141,7 @@ def build_html(data):
             price_usd = item.get('regularMarketPrice', 'N/A')
             change = item.get('regularMarketChangePercent')
             change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
-            earnings_date = "24.04.2024"
+            earnings_date = earnings_map.get(symbol, "N/A")
 
             price_eur = float(price_usd) * exchange_rate if isinstance(price_usd, (int, float)) else "N/A"
 
@@ -103,7 +149,8 @@ def build_html(data):
             content += f"<p>Price: ${price_usd} ({change_text}) / €{price_eur:.2f}</p>"
             content += f"<p>Next earnings: {earnings_date}</p>"
 
-            articles = fetch_news(name.split(',')[0])
+            query = NEWS_QUERY_OVERRIDES.get(symbol, name.split(',')[0])
+            articles = fetch_news(query)
             if articles:
                 for article in articles:
                     content += f"<li><a href='{article['url']}' target='_blank'>{article['title']}</a></li>"
