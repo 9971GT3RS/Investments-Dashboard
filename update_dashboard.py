@@ -1,4 +1,4 @@
-# update_dashboard.py (mit echten Earnings-Terminen + News-Overrides für bessere Treffer)
+# update_dashboard.py (Earnings fix: Zeitraum erweitert + mehr News pro Aktie)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -83,7 +83,7 @@ def fetch_news(query):
                 return cache["articles"]
 
     try:
-        params = {"q": query, "token": GNEWS_API_KEY, "lang": "en", "max": 5, "sort_by": "publishedAt"}
+        params = {"q": query, "token": GNEWS_API_KEY, "lang": "en", "max": 20, "sort_by": "publishedAt"}
         response = requests.get(GNEWS_API_URL, params=params)
         response.raise_for_status()
         articles = response.json().get("articles", [])
@@ -96,7 +96,9 @@ def fetch_news(query):
 
 def fetch_earnings_dates():
     try:
-        url = f"{EARNINGS_API}?apikey={FMP_API_KEY}&limit=1000"
+        today = datetime.today().strftime("%Y-%m-%d")
+        future = (datetime.today() + timedelta(days=60)).strftime("%Y-%m-%d")
+        url = f"{EARNINGS_API}?from={today}&to={future}&apikey={FMP_API_KEY}"
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
@@ -104,64 +106,3 @@ def fetch_earnings_dates():
     except Exception as e:
         print("Earnings fetch error:", e)
         return {}
-
-def build_html(data):
-    utc_now = datetime.now(timezone.utc)
-    berlin_offset = timedelta(hours=2)
-    berlin_time = (utc_now + berlin_offset).strftime("%d.%m.%Y – %H:%M")
-
-    content = f"""
-<!DOCTYPE html>
-<html lang='en'>
-<head>
-  <meta charset='UTF-8'>
-  <title>Market Dashboard</title>
-</head>
-<body>
-<h1>Market News Dashboard</h1>
-<p>Last updated: {berlin_time} (Berlin Time)</p>
-"""
-
-    exchange_rate = 1.0
-    try:
-        exchange_rate = requests.get(EXCHANGE_RATE_API).json()['rates']['EUR']
-    except:
-        content += "<p style='color:red;'>⚠️ EUR conversion failed</p>"
-
-    data_by_symbol = {item.get('symbol'): item for item in data}
-    earnings_map = fetch_earnings_dates()
-
-    for group_name, tickers in GROUPS.items():
-        content += f"<h2>{group_name}</h2>"
-        for symbol in tickers:
-            item = data_by_symbol.get(symbol)
-            if not item:
-                continue
-            name = item.get('shortName') or symbol
-            price_usd = item.get('regularMarketPrice', 'N/A')
-            change = item.get('regularMarketChangePercent')
-            change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
-            earnings_date = earnings_map.get(symbol, "N/A")
-
-            price_eur = float(price_usd) * exchange_rate if isinstance(price_usd, (int, float)) else "N/A"
-
-            content += f"<h3>{name} ({symbol})</h3>"
-            content += f"<p>Price: ${price_usd} ({change_text}) / €{price_eur:.2f}</p>"
-            content += f"<p>Next earnings: {earnings_date}</p>"
-
-            query = NEWS_QUERY_OVERRIDES.get(symbol, name.split(',')[0])
-            articles = fetch_news(query)
-            if articles:
-                for article in articles:
-                    content += f"<li><a href='{article['url']}' target='_blank'>{article['title']}</a></li>"
-            else:
-                content += "<p><i>No recent news available.</i></p>"
-
-    content += "</body></html>"
-
-    with open("boersen-dashboard.html", "w", encoding="utf-8") as f:
-        f.write(content)
-
-if __name__ == "__main__":
-    stock_data = fetch_stock_data()
-    build_html(stock_data)
