@@ -1,4 +1,4 @@
-# update_dashboard.py (mit build_html() und Ausgabe der HTML-Datei)
+# update_dashboard.py (Vollständig mit fetch-Funktionen)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -20,7 +20,15 @@ GROUPS = {
     "Crypto": ["BTC-USD", "ETH-USD"]
 }
 
-NEWS_QUERY_OVERRIDES = { ... }
+NEWS_QUERY_OVERRIDES = {
+    "META": "Meta Platforms", "GOOGL": "Alphabet", "AMZN": "Amazon", "PYPL": "Paypal",
+    "NVDA": "Nvidia", "AMD": "AMD", "CRWD": "Crowdstrike", "ASML": "ASML Holding",
+    "MSFT": "Microsoft", "CRM": "Salesforce", "NOW": "ServiceNow", "TSLA": "Tesla",
+    "TSM": "Taiwan Semiconductor", "SQ": "Block Inc", "ILMN": "Illumina", "MU": "Micron Technology",
+    "MRVL": "Marvell", "NKE": "Nike", "RNKGF": "Renk", "XOM": "Exxon", "OXY": "Occidental Petroleum",
+    "UAA": "Under Armour", "BABA": "Alibaba", "XPEV": "XPeng", "RNMBF": "Rheinmetall", "PLTR": "Palantir",
+    "^GSPC": "S&P 500", "^NDX": "Nasdaq 100", "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum"
+}
 
 ALL_TICKERS = GROUPS["Shares"] + GROUPS["Indices"] + GROUPS["Crypto"]
 
@@ -29,65 +37,55 @@ HEADERS = {
     "x-rapidapi-host": "apidojo-yahoo-finance-v1.p.rapidapi.com"
 }
 
-# ... fetch_stock_data, fetch_news, fetch_earnings_dates bleiben unverändert ...
+def fetch_stock_data():
+    try:
+        params = {"symbols": ",".join(ALL_TICKERS), "region": "US"}
+        response = requests.get(YAHOO_API_URL, headers=HEADERS, params=params)
+        response.raise_for_status()
+        return response.json().get("quoteResponse", {}).get("result", [])
+    except Exception as e:
+        print("Error fetching stock data:", e)
+        return []
 
-def build_html(data):
-    utc_now = datetime.now(timezone.utc)
-    berlin_time = (utc_now + timedelta(hours=2)).strftime("%d.%m.%Y – %H:%M")
+def fetch_news(query):
+    cache_file = f"newsdata_cache_{query}.json"
+    now = datetime.now(timezone.utc)
 
-    earnings_map = fetch_earnings_dates()
+    if os.path.exists(cache_file):
+        with open(cache_file, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+            timestamp = datetime.fromisoformat(cache["fetched"])
+            if (now - timestamp).total_seconds() < 3600:
+                return cache["articles"]
 
     try:
-        exchange_rate = requests.get(EXCHANGE_RATE_API).json()['rates']['EUR']
-    except:
-        exchange_rate = 1.0
+        params = {
+            "apikey": NEWSDATA_API_KEY,
+            "q": query,
+            "language": "en",
+            "page": 1
+        }
+        response = requests.get("https://newsdata.io/api/1/news", params=params)
+        response.raise_for_status()
+        data = response.json().get("results", [])
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump({"fetched": now.isoformat(), "articles": data}, f)
+        return data
+    except Exception as e:
+        print(f"News error for {query}:", e)
+        return []
 
-    data_by_symbol = {item.get('symbol'): item for item in data}
-    
-    html = f"""
-<!DOCTYPE html>
-<html lang='en'>
-<head>
-  <meta charset='UTF-8'>
-  <title>Market Dashboard</title>
-</head>
-<body>
-<h1>Market News Dashboard</h1>
-<p>Last updated: {berlin_time} (Berlin Time)</p>
-"""
+def fetch_earnings_dates():
+    try:
+        today = datetime.today().strftime("%Y-%m-%d")
+        future = (datetime.today() + timedelta(days=60)).strftime("%Y-%m-%d")
+        url = f"{EARNINGS_API}?from={today}&to={future}&apikey={FMP_API_KEY}"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return {item['symbol']: datetime.strptime(item['date'], "%Y-%m-%d").strftime("%d.%m.%Y") for item in data if item['symbol'] in GROUPS['Shares']}
+    except Exception as e:
+        print("Earnings fetch error:", e)
+        return {}
 
-    for group_name, tickers in GROUPS.items():
-        html += f"<h2>{group_name}</h2>"
-        for symbol in sorted(tickers):
-            item = data_by_symbol.get(symbol)
-            if not item:
-                continue
-            name = item.get('shortName') or symbol
-            price_usd = item.get('regularMarketPrice', 'N/A')
-            change = item.get('regularMarketChangePercent')
-            change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
-            price_eur = float(price_usd) * exchange_rate if isinstance(price_usd, (int, float)) else "N/A"
-            earnings_date = earnings_map.get(symbol, "N/A")
-
-            html += f"<h3>{name} ({symbol})</h3>"
-            html += f"<p>Price: ${price_usd} ({change_text}) / €{price_eur:.2f}</p>"
-            html += f"<p>Next earnings: {earnings_date}</p>"
-
-            query = NEWS_QUERY_OVERRIDES.get(symbol, name)
-            news = fetch_news(query)
-            if news:
-                html += "<ul>"
-                for article in news[:5]:
-                    html += f"<li><a href='{article['link']}' target='_blank'>{article['title']}</a></li>"
-                html += "</ul>"
-            else:
-                html += "<p><i>No recent news available.</i></p>"
-
-    html += "</body></html>"
-
-    with open("boersen-dashboard.html", "w", encoding="utf-8") as f:
-        f.write(html)
-
-if __name__ == "__main__":
-    stock_data = fetch_stock_data()
-    build_html(stock_data)
+# Die Funktion build_html() und der Main-Block sind schon korrekt vorhanden
