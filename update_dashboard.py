@@ -45,12 +45,12 @@ def fetch_earnings_dates():
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
-            if data:
+            if data and isinstance(data, list):
                 date = data[0].get('date')
                 if date:
                     earnings[symbol] = datetime.strptime(date, "%Y-%m-%d").strftime("%d.%m.%Y")
         except Exception as e:
-            print(f"[EARNINGS] Error for {symbol}:", e)
+            print(f"[EARNINGS] Error for {symbol}: {e}")
     print(f"[DEBUG] Earnings fetched for {len(earnings)} symbols")
     return earnings
     except Exception as e:
