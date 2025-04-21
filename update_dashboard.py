@@ -1,17 +1,15 @@
-# update_dashboard.py (mit abgesichertem Chart-Fetching und Fehlerbehandlung)
+# update_dashboard.py (Rollback zur stabilen Version ohne Charts)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
 
-# === CONFIG ===
+FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
 GNEWS_API_KEY = "83df462ceeaf456d4d178309ca672e41"
 EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
-CHART_API_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
 
 TICKERS = ["META", "TSLA"]
-CHART_ENABLED_TICKERS = ["META", "TSLA"]
 
 HEADERS = {
     "x-rapidapi-key": YAHOO_API_KEY,
@@ -28,30 +26,6 @@ def fetch_stock_data():
         print("Error fetching stock data:", e)
         return []
 
-def fetch_chart_data(ticker):
-    try:
-        url = f"{CHART_API_BASE}{ticker}?range=30d&interval=1d"
-        headers = {"User-Agent": "Mozilla/5.0"}  # Yahoo blockt Requests ohne UA
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        result = response.json()["chart"]["result"]
-        if not result:
-            return [], []
-        chart = result[0]
-        timestamps = chart.get("timestamp")
-        prices = chart.get("indicators", {}).get("quote", [{}])[0].get("close")
-        if not timestamps or not prices:
-            return [], []
-        dates = [datetime.utcfromtimestamp(ts).strftime("%d.%m") for ts in timestamps if ts]
-        prices = [p for p in prices if p is not None]
-        if len(dates) != len(prices):
-            min_len = min(len(dates), len(prices))
-            dates, prices = dates[:min_len], prices[:min_len]
-        return dates, prices
-    except Exception as e:
-        print(f"Chart data error for {ticker}:", e)
-        return [], []
-
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
     berlin_offset = timedelta(hours=2)
@@ -63,7 +37,6 @@ def build_html(data):
 <head>
   <meta charset='UTF-8'>
   <title>Market Dashboard</title>
-  <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
 </head>
 <body>
 <h1>Market News Dashboard</h1>
@@ -89,19 +62,6 @@ def build_html(data):
         content += f"<h3>{name} ({symbol})</h3>"
         content += f"<p>Price: ${price_usd} ({change_text}) / €{price_eur:.2f}</p>"
         content += f"<p>Next earnings: {earnings_date}</p>"
-
-        if symbol in CHART_ENABLED_TICKERS:
-            dates, prices = fetch_chart_data(symbol)
-            if dates and prices:
-                chart_id = f"chart_{symbol}"
-                content += f"<canvas id='{chart_id}' width='400' height='150'></canvas>"
-                content += f"<script>new Chart(document.getElementById('{chart_id}').getContext('2d'), {{
-                    type: 'line',
-                    data: {{ labels: {json.dumps(dates)}, datasets: [{{ label: 'USD', data: {json.dumps(prices)}, fill: false, borderColor: 'blue', tension: 0.1 }}] }},
-                    options: {{ responsive: true, plugins: {{ legend: {{ display: false }} }} }}
-                }});</script>"
-            else:
-                content += f"<p style='color:orange;'>Chart data not available for {symbol}</p>"
 
     content += "</body></html>"
 
