@@ -39,7 +39,7 @@ def fetch_stock_data():
 def fetch_earnings_dates():
     try:
         today = datetime.today().strftime("%Y-%m-%d")
-        future = (datetime.today() + timedelta(days=60)).strftime("%Y-%m-%d")
+        future = (datetime.today() + timedelta(days=90)).strftime("%Y-%m-%d")
         url = f"{EARNINGS_API}?from={today}&to={future}&apikey={FMP_API_KEY}"
         response = requests.get(url)
         response.raise_for_status()
