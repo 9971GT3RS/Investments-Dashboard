@@ -1,4 +1,4 @@
-# update_dashboard.py (stabilisierte Version ohne News – nur Kurse + Earnings)
+# update_dashboard.py (stabile Version mit Kursen, EUR, Earnings-Terminen ohne News)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -8,7 +8,6 @@ FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
 EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
-EARNINGS_API = "https://financialmodelingprep.com/api/v3/earning_calendar"
 
 GROUPS = {
     "Shares": [
@@ -48,18 +47,16 @@ def fetch_earnings_dates():
             data = response.json()
 
             if data and isinstance(data, list):
-                entry = data[0]
-                if "date" in entry:
-                    formatted = datetime.strptime(entry["date"], "%Y-%m-%d").strftime("%d.%m.%Y")
-                    earnings[symbol] = formatted
+                first = data[0]
+                if "date" in first:
+                    date_str = first["date"]
+                    earnings[symbol] = datetime.strptime(date_str, "%Y-%m-%d").strftime("%d.%m.%Y")
+
         except Exception as e:
             print(f"[EARNINGS] Error for {symbol}: {e}")
 
     print(f"[DEBUG] Earnings fetched for {len(earnings)} symbols")
     return earnings
-    except Exception as e:
-        print("Earnings fetch error:", e)
-        return {}
 
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
