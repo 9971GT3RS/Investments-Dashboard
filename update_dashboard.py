@@ -39,18 +39,22 @@ def fetch_stock_data():
 def fetch_earnings_dates():
     print("[DEBUG] Fetching earnings dates (per symbol)...")
     earnings = {}
-    for symbol in GROUPS['Shares']:
+
+    for symbol in GROUPS["Shares"]:
         try:
             url = f"https://financialmodelingprep.com/api/v3/earning_calendar/{symbol}?apikey={FMP_API_KEY}"
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
+
             if data and isinstance(data, list):
-                date = data[0].get('date')
-                if date:
-                    earnings[symbol] = datetime.strptime(date, "%Y-%m-%d").strftime("%d.%m.%Y")
+                entry = data[0]
+                if "date" in entry:
+                    formatted = datetime.strptime(entry["date"], "%Y-%m-%d").strftime("%d.%m.%Y")
+                    earnings[symbol] = formatted
         except Exception as e:
             print(f"[EARNINGS] Error for {symbol}: {e}")
+
     print(f"[DEBUG] Earnings fetched for {len(earnings)} symbols")
     return earnings
     except Exception as e:
