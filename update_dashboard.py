@@ -1,4 +1,4 @@
-# update_dashboard.py (Earnings fix: Zeitraum erweitert + mehr News pro Aktie)
+# update_dashboard.py (Earnings fix + alphabetische Sortierung + News über Newsdata.io)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -7,9 +7,8 @@ import os
 FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
-GNEWS_API_KEY = "83df462ceeaf456d4d178309ca672e41"
+NEWSDATA_API_KEY = "pub_8178059be021e6dbfd5d7ad623f9f93f1a9f5"
 EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
-GNEWS_API_URL = "https://gnews.io/api/v4/search"
 EARNINGS_API = "https://financialmodelingprep.com/api/v3/earning_calendar"
 
 GROUPS = {
@@ -72,7 +71,7 @@ def fetch_stock_data():
         return []
 
 def fetch_news(query):
-    cache_file = f"news_cache_{query}.json"
+    cache_file = f"newsdata_cache_{query}.json"
     now = datetime.now(timezone.utc)
 
     if os.path.exists(cache_file):
@@ -83,13 +82,18 @@ def fetch_news(query):
                 return cache["articles"]
 
     try:
-        params = {"q": query, "token": GNEWS_API_KEY, "lang": "en", "max": 20, "sort_by": "publishedAt"}
-        response = requests.get(GNEWS_API_URL, params=params)
+        params = {
+            "apikey": NEWSDATA_API_KEY,
+            "q": query,
+            "language": "en",
+            "page": 1
+        }
+        response = requests.get("https://newsdata.io/api/1/news", params=params)
         response.raise_for_status()
-        articles = response.json().get("articles", [])
+        data = response.json().get("results", [])
         with open(cache_file, "w", encoding="utf-8") as f:
-            json.dump({"fetched": now.isoformat(), "articles": articles}, f)
-        return articles
+            json.dump({"fetched": now.isoformat(), "articles": data}, f)
+        return data
     except Exception as e:
         print(f"News error for {query}:", e)
         return []
@@ -102,7 +106,7 @@ def fetch_earnings_dates():
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
-        return {item['symbol']: datetime.strptime(item['date'], "%Y-%m-%d").strftime("%d.%m.%Y") for item in data}
+        return {item['symbol']: datetime.strptime(item['date'], "%Y-%m-%d").strftime("%d.%m.%Y") for item in data if item['symbol'] in GROUPS['Shares']}
     except Exception as e:
         print("Earnings fetch error:", e)
         return {}
