@@ -1,4 +1,4 @@
-# update_dashboard.py (stabile Version mit Kursen, EUR, Earnings-Terminen ohne News)
+# update_dashboard.py (funktionierende Earnings-Version aus vorherigem Stand)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -8,6 +8,7 @@ FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
 EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
+EARNINGS_API = "https://financialmodelingprep.com/api/v3/earning_calendar"
 
 GROUPS = {
     "Shares": [
@@ -36,27 +37,17 @@ def fetch_stock_data():
         return []
 
 def fetch_earnings_dates():
-    print("[DEBUG] Fetching earnings dates (per symbol)...")
-    earnings = {}
-
-    for symbol in GROUPS["Shares"]:
-        try:
-            url = f"https://financialmodelingprep.com/api/v3/earning_calendar/{symbol}?apikey={FMP_API_KEY}"
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json()
-
-            if data and isinstance(data, list):
-                first = data[0]
-                if "date" in first:
-                    date_str = first["date"]
-                    earnings[symbol] = datetime.strptime(date_str, "%Y-%m-%d").strftime("%d.%m.%Y")
-
-        except Exception as e:
-            print(f"[EARNINGS] Error for {symbol}: {e}")
-
-    print(f"[DEBUG] Earnings fetched for {len(earnings)} symbols")
-    return earnings
+    try:
+        today = datetime.today().strftime("%Y-%m-%d")
+        future = (datetime.today() + timedelta(days=90)).strftime("%Y-%m-%d")
+        url = f"{EARNINGS_API}?from={today}&to={future}&apikey={FMP_API_KEY}"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return {item['symbol']: datetime.strptime(item['date'], "%Y-%m-%d").strftime("%d.%m.%Y") for item in data if item['symbol'] in GROUPS['Shares']}
+    except Exception as e:
+        print("Earnings fetch error:", e)
+        return {}
 
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
