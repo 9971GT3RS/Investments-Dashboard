@@ -68,6 +68,7 @@ def fetch_earnings_dates():
     with open(cache_file, "w", encoding="utf-8") as f:
         json.dump({"timestamp": now.isoformat(), "data": earnings}, f)
 
+    print("[DEBUG] Final earnings map:", earnings)
     print(f"[DEBUG] Earnings fetched for {len(earnings)} symbols")
     return earnings
 
