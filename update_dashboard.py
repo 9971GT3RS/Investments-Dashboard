@@ -44,7 +44,7 @@ def fetch_earnings_dates():
         with open(cache_file, "r", encoding="utf-8") as f:
             cache = json.load(f)
             timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
-            if (now - timestamp).total_seconds() < 86400:
+            if (now - timestamp).total_seconds() < 86400 and cache.get("data")
                 print("[DEBUG] Using cached earnings data")
                 return cache.get("data", {})
 
