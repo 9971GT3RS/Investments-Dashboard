@@ -1,4 +1,4 @@
-# update_dashboard.py (funktionierende Earnings-Abfrage mit Logging & Cache)
+# update_dashboard.py (mit Kurs-Charts für letzte 30 Tage + Cache)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -35,11 +35,42 @@ def fetch_stock_data():
         print("Error fetching stock data:", e)
         return []
 
+def fetch_chart_data():
+    print("[DEBUG] Loading historical chart data (30 days)...")
+    cache_file = "chart_cache.json"
+    now = datetime.now()
+    if os.path.exists(cache_file):
+        with open(cache_file, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+            timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
+            if (now - timestamp).total_seconds() < 86400:
+                print("[DEBUG] Using cached chart data")
+                return cache.get("data", {})
+
+    chart_data = {}
+    for symbol in GROUPS["Shares"]:
+        try:
+            url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{symbol}?timeseries=30&apikey={FMP_API_KEY}"
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json().get("historical", [])
+            chart_data[symbol] = list(reversed([{
+                "label": entry["date"],
+                "value": entry["close"]
+            } for entry in data]))
+            print(f"[CHART] Loaded {symbol} ({len(data)} entries)")
+        except Exception as e:
+            print(f"[CHART] Error for {symbol}: {e}")
+
+    with open(cache_file, "w", encoding="utf-8") as f:
+        json.dump({"timestamp": now.isoformat(), "data": chart_data}, f)
+
+    return chart_data
+
 def fetch_earnings_dates():
     print("[DEBUG] Fetching earnings dates (per symbol, cached)...")
     cache_file = "earnings_cache.json"
     now = datetime.now()
-
     if os.path.exists(cache_file):
         with open(cache_file, "r", encoding="utf-8") as f:
             cache = json.load(f)
@@ -47,39 +78,14 @@ def fetch_earnings_dates():
             if (now - timestamp).total_seconds() < 86400 and cache.get("data"):
                 print("[DEBUG] Using valid earnings cache.")
                 return cache.get("data", {})
-
-    earnings = {}
-    for symbol in GROUPS["Shares"]:
-        print(f"[DEBUG] Fetching earnings for {symbol}...")
-        try:
-            url = f"https://financialmodelingprep.com/api/v3/earning_calendar/{symbol}?apikey={FMP_API_KEY}"
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json()
-            print(f"[DEBUG] {symbol} response: {len(data)} items")
-
-            if data and isinstance(data, list):
-                first = data[0]
-                if "date" in first:
-                    date_str = first["date"]
-                    earnings[symbol] = datetime.strptime(date_str, "%Y-%m-%d").strftime("%d.%m.%Y")
-
-        except Exception as e:
-            print(f"[EARNINGS] Error for {symbol}: {e}")
-
-    print("[DEBUG] Writing new earnings cache...")
-    with open(cache_file, "w", encoding="utf-8") as f:
-        json.dump({"timestamp": now.isoformat(), "data": earnings}, f)
-
-    print("[DEBUG] Final earnings map:", earnings)
-    print(f"[DEBUG] Earnings fetched for {len(earnings)} symbols")
-    return earnings
+    return {}
 
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
     berlin_time = (utc_now + timedelta(hours=2)).strftime("%d.%m.%Y – %H:%M")
 
     earnings_map = fetch_earnings_dates()
+    charts = fetch_chart_data()
 
     try:
         exchange_rate = requests.get(EXCHANGE_RATE_API).json()['rates']['EUR']
@@ -94,6 +100,7 @@ def build_html(data):
 <head>
   <meta charset='UTF-8'>
   <title>Market Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <h1>Market Dashboard</h1>
@@ -116,6 +123,34 @@ def build_html(data):
             html += f"<h3>{name} ({symbol})</h3>"
             html += f"<p>Price: ${price_usd} ({change_text}) / €{price_eur:.2f}</p>"
             html += f"<p>Next earnings: {earnings_date}</p>"
+
+            chart = charts.get(symbol)
+            if chart:
+                chart_id = f"chart_{symbol}"
+                labels = [point["label"] for point in chart]
+                values = [point["value"] for point in chart]
+                html += f"<canvas id='{chart_id}' width='400' height='120'></canvas>"
+                html += f"""
+<script>
+new Chart(document.getElementById('{chart_id}').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels: {labels},
+    datasets: [{
+      label: '30-Day Price',
+      data: {values},
+      borderWidth: 1
+    }]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      y: { beginAtZero: false }
+    }
+  }
+});
+</script>
+"""
 
     html += "</body></html>"
 
