@@ -46,6 +46,7 @@ def fetch_earnings_dates():
             timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
             if (now - timestamp).total_seconds() < 86400 and cache.get("data"):
         print("[DEBUG] Using valid earnings cache.")
+        return cache.get("data", {})
                 print("[DEBUG] Using cached earnings data")
                 return cache.get("data", {})
 
