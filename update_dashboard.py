@@ -45,16 +45,19 @@ def fetch_earnings_dates():
             cache = json.load(f)
             timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
             if (now - timestamp).total_seconds() < 86400 and cache.get("data"):
+        print("[DEBUG] Using valid earnings cache.")
                 print("[DEBUG] Using cached earnings data")
                 return cache.get("data", {})
 
     earnings = {}
     for symbol in GROUPS["Shares"]:
+        print(f"[DEBUG] Fetching earnings for {symbol}...")
         try:
             url = f"https://financialmodelingprep.com/api/v3/earning_calendar/{symbol}?apikey={FMP_API_KEY}"
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
+            print(f"[DEBUG] {symbol} response: {len(data)} items")
 
             if data and isinstance(data, list):
                 first = data[0]
@@ -65,6 +68,7 @@ def fetch_earnings_dates():
         except Exception as e:
             print(f"[EARNINGS] Error for {symbol}: {e}")
 
+    print("[DEBUG] Writing new earnings cache...")
     with open(cache_file, "w", encoding="utf-8") as f:
         json.dump({"timestamp": now.isoformat(), "data": earnings}, f)
 
