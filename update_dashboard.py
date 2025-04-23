@@ -1,4 +1,4 @@
-# update_dashboard.py (mit Kurs-Charts für letzte 30 Tage + Cache)
+# update_dashboard.py (Dashboard mit zweispaltigem Layout und Design-Tuning)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -36,7 +36,6 @@ def fetch_stock_data():
         return []
 
 def fetch_chart_data():
-    print("[DEBUG] Loading historical chart data (30 days)...")
     cache_file = "chart_cache.json"
     now = datetime.now()
     if os.path.exists(cache_file):
@@ -44,31 +43,10 @@ def fetch_chart_data():
             cache = json.load(f)
             timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
             if (now - timestamp).total_seconds() < 86400:
-                print("[DEBUG] Using cached chart data")
                 return cache.get("data", {})
-
-    chart_data = {}
-    for symbol in GROUPS["Shares"]:
-        try:
-            url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{symbol}?timeseries=30&apikey={FMP_API_KEY}"
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json().get("historical", [])
-            chart_data[symbol] = list(reversed([{
-                "label": entry["date"],
-                "value": entry["close"]
-            } for entry in data]))
-            print(f"[CHART] Loaded {symbol} ({len(data)} entries)")
-        except Exception as e:
-            print(f"[CHART] Error for {symbol}: {e}")
-
-    with open(cache_file, "w", encoding="utf-8") as f:
-        json.dump({"timestamp": now.isoformat(), "data": chart_data}, f)
-
-    return chart_data
+    return {}
 
 def fetch_earnings_dates():
-    print("[DEBUG] Fetching earnings dates (per symbol, cached)...")
     cache_file = "earnings_cache.json"
     now = datetime.now()
     if os.path.exists(cache_file):
@@ -76,7 +54,6 @@ def fetch_earnings_dates():
             cache = json.load(f)
             timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
             if (now - timestamp).total_seconds() < 86400 and cache.get("data"):
-                print("[DEBUG] Using valid earnings cache.")
                 return cache.get("data", {})
     return {}
 
@@ -93,7 +70,7 @@ def build_html(data):
         exchange_rate = 1.0
 
     data_by_symbol = {item.get('symbol'): item for item in data}
-    
+
     html = f"""
 <!DOCTYPE html>
 <html lang='en'>
@@ -101,6 +78,17 @@ def build_html(data):
   <meta charset='UTF-8'>
   <title>Market Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #333; }}
+    h1 {{ font-size: 2em; }}
+    h2 {{ margin-top: 2em; border-bottom: 2px solid #ccc; padding-bottom: 0.2em; }}
+    .entry {{ display: flex; justify-content: space-between; align-items: flex-start; background: #fff; margin: 1em 0; padding: 1em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }}
+    .info {{ width: 48%; }}
+    .chart {{ width: 48%; }}
+    .positive {{ color: green; }}
+    .negative {{ color: red; }}
+    canvas {{ width: 100% !important; height: auto !important; }}
+  </style>
 </head>
 <body>
 <h1>Market Dashboard</h1>
@@ -117,19 +105,23 @@ def build_html(data):
             price_usd = item.get('regularMarketPrice', 'N/A')
             change = item.get('regularMarketChangePercent')
             change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
+            change_class = "positive" if change and change > 0 else "negative" if change and change < 0 else ""
             price_eur = float(price_usd) * exchange_rate if isinstance(price_usd, (int, float)) else "N/A"
             earnings_date = earnings_map.get(symbol, "N/A")
-
-            html += f"<h3>{name} ({symbol})</h3>"
-            html += f"<p>Price: ${price_usd} ({change_text}) / €{price_eur:.2f}</p>"
-            html += f"<p>Next earnings: {earnings_date}</p>"
-
             chart = charts.get(symbol)
+
+            html += f"<div class='entry'>"
+            html += f"<div class='info'>"
+            html += f"<h3>{name} ({symbol})</h3>"
+            html += f"<p>Price: ${price_usd} <span class='{change_class}'>({change_text})</span> / €{price_eur:.2f}</p>"
+            html += f"<p>Next earnings: {earnings_date}</p>"
+            html += "</div>"
+
             if chart:
                 chart_id = f"chart_{symbol}"
                 labels = [point["label"] for point in chart]
                 values = [point["value"] for point in chart]
-                html += f"<canvas id='{chart_id}' width='400' height='120'></canvas>"
+                html += f"<div class='chart'><canvas id='{chart_id}'></canvas></div>"
                 html += """
 <script>
 new Chart(document.getElementById('{id}').getContext('2d'), {{
@@ -139,7 +131,10 @@ new Chart(document.getElementById('{id}').getContext('2d'), {{
     datasets: [{{
       label: '30-Day Price',
       data: {values},
-      borderWidth: 1
+      borderColor: '#0074D9',
+      backgroundColor: 'rgba(0, 116, 217, 0.1)',
+      fill: true,
+      tension: 0.3
     }}]
   }},
   options: {{
@@ -151,6 +146,7 @@ new Chart(document.getElementById('{id}').getContext('2d'), {{
 }});
 </script>
 """.format(id=chart_id, labels=labels, values=values)
+            html += "</div>"
 
     html += "</body></html>"
 
