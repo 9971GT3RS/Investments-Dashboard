@@ -130,24 +130,27 @@ def build_html(data):
                 labels = [point["label"] for point in chart]
                 values = [point["value"] for point in chart]
                 html += f"<canvas id='{chart_id}' width='400' height='120'></canvas>"
-                html += f"""
+                html += """
 <script>
-new Chart(document.getElementById('{chart_id}').getContext('2d'), {
+new Chart(document.getElementById('{id}').getContext('2d'), {{
   type: 'line',
-  data: {
-    labels: {
+  data: {{
+    labels: {labels},
+    datasets: [{{
+      label: '30-Day Price',
+      data: {values},
       borderWidth: 1
-    }]
-  },
-  options: {
+    }}]
+  }},
+  options: {{
     responsive: true,
-    scales: {
-      y: { beginAtZero: false }
-    }
-  }
-});
+    scales: {{
+      y: {{ beginAtZero: false }}
+    }}
+  }}
+}});
 </script>
-"""
+""".format(id=chart_id, labels=labels, values=values)
 
     html += "</body></html>"
 
