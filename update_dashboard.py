@@ -135,10 +135,7 @@ def build_html(data):
 new Chart(document.getElementById('{chart_id}').getContext('2d'), {
   type: 'line',
   data: {
-    labels: {labels},
-    datasets: [{
-      label: '30-Day Price',
-      data: {values},
+    labels: {
       borderWidth: 1
     }]
   },
