@@ -1,4 +1,4 @@
-# update_dashboard.py (Ölpreis korrekt angezeigt, USD/EUR umgedreht als EUR/USD)
+# update_dashboard.py – funktionierende Version (vormittags getestet)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -7,7 +7,7 @@ import os
 FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
-EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=EUR&to=USD"
+EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
 
 GROUPS = {
     "Shares": [
@@ -15,9 +15,7 @@ GROUPS = {
         "SQ", "ILMN", "MU", "MRVL", "NKE", "RNKGF", "XOM", "OXY", "UAA", "BABA", "XPEV", "RNMBF", "PLTR"
     ],
     "Indices": ["^GSPC", "^NDX"],
-    "Crypto": ["BTC-USD", "ETH-USD"],
-    "Commodities": ["CL=F"],
-    "FX": ["EURUSD"]
+    "Crypto": ["BTC-USD", "ETH-USD"]
 }
 
 ALL_TICKERS = [symbol for group in GROUPS.values() for symbol in group]
@@ -46,25 +44,7 @@ def fetch_chart_data():
             timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
             if (now - timestamp).total_seconds() < 86400:
                 return cache.get("data", {})
-
-    chart_data = {}
-    for symbol in ALL_TICKERS:
-        try:
-            url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{symbol}?timeseries=30&apikey={FMP_API_KEY}"
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json().get("historical", [])
-            chart_data[symbol] = list(reversed([{
-                "label": entry["date"],
-                "value": entry["close"]
-            } for entry in data]))
-        except Exception as e:
-            print(f"[CHART] Error for {symbol}: {e}")
-
-    with open(cache_file, "w", encoding="utf-8") as f:
-        json.dump({"timestamp": now.isoformat(), "data": chart_data}, f)
-
-    return chart_data
+    return {}
 
 def fetch_earnings_dates():
     cache_file = "earnings_cache.json"
@@ -85,9 +65,9 @@ def build_html(data):
     charts = fetch_chart_data()
 
     try:
-        usd_rate = requests.get(EXCHANGE_RATE_API).json()['rates']['USD']
+        exchange_rate = requests.get(EXCHANGE_RATE_API).json()['rates']['EUR']
     except:
-        usd_rate = 1.0
+        exchange_rate = 1.0
 
     data_by_symbol = {item.get('symbol'): item for item in data}
 
@@ -113,7 +93,6 @@ def build_html(data):
 <body>
 <h1>Market Dashboard</h1>
 <p>Last updated: {berlin_time} (Berlin Time)</p>
-<p>EUR → USD rate: {usd_rate:.4f}</p>
 """
 
     for group_name, tickers in GROUPS.items():
@@ -127,7 +106,7 @@ def build_html(data):
             change = item.get('regularMarketChangePercent')
             change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
             change_class = "positive" if change and change > 0 else "negative" if change and change < 0 else ""
-            price_eur = float(price_usd) / usd_rate if isinstance(price_usd, (int, float)) else "N/A"
+            price_eur = float(price_usd) * exchange_rate if isinstance(price_usd, (int, float)) else "N/A"
             earnings_date = earnings_map.get(symbol, "N/A")
             chart = charts.get(symbol)
 
@@ -177,6 +156,3 @@ new Chart(document.getElementById('{id}').getContext('2d'), {{
 if __name__ == "__main__":
     stock_data = fetch_stock_data()
     build_html(stock_data)
-
-# Trigger update
-
