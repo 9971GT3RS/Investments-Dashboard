@@ -1,4 +1,4 @@
-# update_dashboard.py (mit Chart-Daten von FMP)
+# update_dashboard.py (FMP-Fix: ohne Indices, mit stabilem Chart-Code)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -18,7 +18,7 @@ GROUPS = {
     "Crypto": ["BTC-USD", "ETH-USD"]
 }
 
-ALL_TICKERS = GROUPS["Shares"] + GROUPS["Indices"] + GROUPS["Crypto"]
+ALL_TICKERS = GROUPS["Shares"] + GROUPS["Crypto"]  # Indices aus Chart-Download ausschließen
 
 HEADERS = {
     "x-rapidapi-key": YAHOO_API_KEY,
@@ -27,7 +27,7 @@ HEADERS = {
 
 def fetch_stock_data():
     try:
-        params = {"symbols": ",".join(ALL_TICKERS), "region": "US"}
+        params = {"symbols": ",".join(GROUPS["Shares"] + GROUPS["Indices"] + GROUPS["Crypto"]), "region": "US"}
         response = requests.get(YAHOO_API_URL, headers=HEADERS, params=params)
         response.raise_for_status()
         return response.json().get("quoteResponse", {}).get("result", [])
@@ -97,7 +97,7 @@ def build_html(data):
 
     data_by_symbol = {item.get('symbol'): item for item in data}
 
-    html = f"""
+    html = """
 <!DOCTYPE html>
 <html lang='en'>
 <head>
@@ -105,20 +105,20 @@ def build_html(data):
   <title>Market Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {{ font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #333; }}
-    h1 {{ font-size: 2em; }}
-    h2 {{ margin-top: 2em; border-bottom: 2px solid #ccc; padding-bottom: 0.2em; }}
-    .entry {{ display: flex; justify-content: space-between; align-items: flex-start; background: #fff; margin: 1em 0; padding: 1em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }}
-    .info {{ width: 48%; }}
-    .chart {{ width: 48%; }}
-    .positive {{ color: green; }}
-    .negative {{ color: red; }}
-    canvas {{ width: 100% !important; height: auto !important; }}
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #333; }
+    h1 { font-size: 2em; }
+    h2 { margin-top: 2em; border-bottom: 2px solid #ccc; padding-bottom: 0.2em; }
+    .entry { display: flex; justify-content: space-between; align-items: flex-start; background: #fff; margin: 1em 0; padding: 1em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+    .info { width: 48%; }
+    .chart { width: 48%; }
+    .positive { color: green; }
+    .negative { color: red; }
+    canvas { width: 100% !important; height: auto !important; }
   </style>
 </head>
 <body>
 <h1>Market Dashboard</h1>
-<p>Last updated: {berlin_time} (Berlin Time)</p>
+<p>Last updated: """ + berlin_time + """ (Berlin Time)</p>
 """
 
     for group_name, tickers in GROUPS.items():
@@ -147,31 +147,32 @@ def build_html(data):
                 chart_id = f"chart_{symbol}"
                 labels = [point["label"] for point in chart]
                 values = [point["value"] for point in chart]
-                html += f"<div class='chart'><canvas id='{chart_id}'></canvas></div>"
-                html += """
-<script>
-new Chart(document.getElementById('{id}').getContext('2d'), {
-  type: 'line',
-  data: {
-    labels: {labels},
-    datasets: [{
-      label: '30-Day Price',
-      data: {values},
-      borderColor: '#0074D9',
-      backgroundColor: 'rgba(0, 116, 217, 0.1)',
-      fill: true,
-      tension: 0.3
-    }]
-  },
-  options: {
-    responsive: true,
-    scales: {
-      y: { beginAtZero: false }
-    }
-  }
-});
-</script>
-""".format(id=chart_id, labels=labels, values=values)
+                chart_script = f"""
+<div class='chart'>
+  <canvas id='{chart_id}'></canvas>
+  <script>
+    new Chart(document.getElementById('{chart_id}').getContext('2d'), {{
+      type: 'line',
+      data: {{
+        labels: {labels},
+        datasets: [{{
+          label: '30-Day Price',
+          data: {values},
+          borderColor: '#0074D9',
+          backgroundColor: 'rgba(0, 116, 217, 0.1)',
+          fill: true,
+          tension: 0.3
+        }}]
+      }},
+      options: {{
+        responsive: true,
+        scales: {{ y: {{ beginAtZero: false }} }}
+      }}
+    }});
+  </script>
+</div>
+"""
+                html += chart_script
             html += "</div>"
 
     html += "</body></html>"
