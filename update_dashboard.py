@@ -1,4 +1,4 @@
-# update_dashboard.py (FMP-Fix: ohne Indices, mit stabilem Chart-Code)
+# update_dashboard.py (mit funktionierenden Earnings-Daten, wie zuvor)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -18,7 +18,7 @@ GROUPS = {
     "Crypto": ["BTC-USD", "ETH-USD"]
 }
 
-ALL_TICKERS = GROUPS["Shares"] + GROUPS["Crypto"]  # Indices aus Chart-Download ausschließen
+ALL_TICKERS = GROUPS["Shares"] + GROUPS["Crypto"]
 
 HEADERS = {
     "x-rapidapi-key": YAHOO_API_KEY,
@@ -81,7 +81,27 @@ def fetch_earnings_dates():
                     return cache.get("data", {})
             except json.JSONDecodeError:
                 print("Earnings cache file is invalid.")
-    return {}
+
+    print("[DEBUG] Fetching earnings dates (per symbol, cached)...")
+    earnings_map = {}
+    for symbol in GROUPS["Shares"]:
+        url = f"https://financialmodelingprep.com/api/v3/earning_calendar/{symbol}?apikey={FMP_API_KEY}"
+        try:
+            r = requests.get(url)
+            r.raise_for_status()
+            items = r.json()
+            if items and isinstance(items, list):
+                earnings_date = items[0].get("date")
+                if earnings_date:
+                    dt = datetime.strptime(earnings_date, "%Y-%m-%d")
+                    earnings_map[symbol] = dt.strftime("%d.%m.%Y")
+        except Exception as e:
+            print(f"[EARNINGS] Error for {symbol}:", e)
+
+    with open(cache_file, "w", encoding="utf-8") as f:
+        json.dump({"timestamp": now.isoformat(), "data": earnings_map}, f, indent=2)
+
+    return earnings_map
 
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
