@@ -1,4 +1,4 @@
-# update_dashboard.py (Chart-Fix + echter WTI + USD/EUR Wechselkurs explizit dargestellt)
+# update_dashboard.py (Charts für alle Gruppen: Shares, Indices, Crypto, Commodities, FX)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -20,7 +20,7 @@ GROUPS = {
     "FX": ["USDEUR"]
 }
 
-ALL_TICKERS = GROUPS["Shares"] + GROUPS["Indices"] + GROUPS["Crypto"] + GROUPS["Commodities"] + GROUPS["FX"]
+ALL_TICKERS = [symbol for group in GROUPS.values() for symbol in group]
 
 HEADERS = {
     "x-rapidapi-key": YAHOO_API_KEY,
