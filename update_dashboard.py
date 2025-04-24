@@ -1,4 +1,4 @@
-# update_dashboard.py (zurückgesetzt: ohne WTI/USDEUR, nur Shares, Indices, Crypto)
+# update_dashboard.py (komplette Version mit WTI & USD/EUR)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -15,10 +15,12 @@ GROUPS = {
         "SQ", "ILMN", "MU", "MRVL", "NKE", "RNKGF", "XOM", "OXY", "UAA", "BABA", "XPEV", "RNMBF", "PLTR"
     ],
     "Indices": ["^GSPC", "^NDX"],
-    "Crypto": ["BTC-USD", "ETH-USD"]
+    "Crypto": ["BTC-USD", "ETH-USD"],
+    "Commodities": ["WTI"],
+    "FX": ["USDEUR"]
 }
 
-ALL_TICKERS = GROUPS["Shares"] + GROUPS["Indices"] + GROUPS["Crypto"]
+ALL_TICKERS = GROUPS["Shares"] + GROUPS["Indices"] + GROUPS["Crypto"] + GROUPS["Commodities"] + GROUPS["FX"]
 
 HEADERS = {
     "x-rapidapi-key": YAHOO_API_KEY,
@@ -44,7 +46,25 @@ def fetch_chart_data():
             timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
             if (now - timestamp).total_seconds() < 86400:
                 return cache.get("data", {})
-    return {}
+
+    chart_data = {}
+    for symbol in ALL_TICKERS:
+        try:
+            url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{symbol}?timeseries=30&apikey={FMP_API_KEY}"
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json().get("historical", [])
+            chart_data[symbol] = list(reversed([{
+                "label": entry["date"],
+                "value": entry["close"]
+            } for entry in data]))
+        except Exception as e:
+            print(f"[CHART] Error for {symbol}: {e}")
+
+    with open(cache_file, "w", encoding="utf-8") as f:
+        json.dump({"timestamp": now.isoformat(), "data": chart_data}, f)
+
+    return chart_data
 
 def fetch_earnings_dates():
     cache_file = "earnings_cache.json"
