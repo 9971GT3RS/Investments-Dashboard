@@ -1,4 +1,4 @@
-# update_dashboard.py (Charts für alle Gruppen: Shares, Indices, Crypto)
+# update_dashboard.py (mit Chart-Daten von FMP)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -47,7 +47,27 @@ def fetch_chart_data():
                     return cache.get("data", {})
             except json.JSONDecodeError:
                 print("Chart cache file is invalid.")
-    return {}
+
+    print("[DEBUG] Downloading fresh chart data...")
+    chart_data = {}
+    for symbol in ALL_TICKERS:
+        url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{symbol}?timeseries=30&apikey={FMP_API_KEY}"
+        try:
+            r = requests.get(url)
+            r.raise_for_status()
+            hist = r.json().get("historical", [])
+            hist.reverse()
+            chart_data[symbol] = [
+                {"label": h["date"], "value": h["close"]}
+                for h in hist if "close" in h and "date" in h
+            ]
+        except Exception as e:
+            print(f"FMP chart data error for {symbol}:", e)
+
+    with open(cache_file, "w", encoding="utf-8") as f:
+        json.dump({"timestamp": now.isoformat(), "data": chart_data}, f, indent=2)
+
+    return chart_data
 
 def fetch_earnings_dates():
     cache_file = "earnings_cache.json"
