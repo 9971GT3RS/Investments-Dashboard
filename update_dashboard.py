@@ -1,4 +1,4 @@
-# update_dashboard.py – funktionierende Version (vormittags getestet)
+# update_dashboard.py (Charts für alle Gruppen: Shares, Indices, Crypto)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -18,7 +18,7 @@ GROUPS = {
     "Crypto": ["BTC-USD", "ETH-USD"]
 }
 
-ALL_TICKERS = [symbol for group in GROUPS.values() for symbol in group]
+ALL_TICKERS = GROUPS["Shares"] + GROUPS["Indices"] + GROUPS["Crypto"]
 
 HEADERS = {
     "x-rapidapi-key": YAHOO_API_KEY,
@@ -40,10 +40,13 @@ def fetch_chart_data():
     now = datetime.now()
     if os.path.exists(cache_file):
         with open(cache_file, "r", encoding="utf-8") as f:
-            cache = json.load(f)
-            timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
-            if (now - timestamp).total_seconds() < 86400:
-                return cache.get("data", {})
+            try:
+                cache = json.load(f)
+                timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
+                if (now - timestamp).total_seconds() < 86400:
+                    return cache.get("data", {})
+            except json.JSONDecodeError:
+                print("Chart cache file is invalid.")
     return {}
 
 def fetch_earnings_dates():
@@ -51,10 +54,13 @@ def fetch_earnings_dates():
     now = datetime.now()
     if os.path.exists(cache_file):
         with open(cache_file, "r", encoding="utf-8") as f:
-            cache = json.load(f)
-            timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
-            if (now - timestamp).total_seconds() < 86400 and cache.get("data"):
-                return cache.get("data", {})
+            try:
+                cache = json.load(f)
+                timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
+                if (now - timestamp).total_seconds() < 86400 and cache.get("data"):
+                    return cache.get("data", {})
+            except json.JSONDecodeError:
+                print("Earnings cache file is invalid.")
     return {}
 
 def build_html(data):
@@ -77,7 +83,7 @@ def build_html(data):
 <head>
   <meta charset='UTF-8'>
   <title>Market Dashboard</title>
-  <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {{ font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #333; }}
     h1 {{ font-size: 2em; }}
@@ -124,26 +130,26 @@ def build_html(data):
                 html += f"<div class='chart'><canvas id='{chart_id}'></canvas></div>"
                 html += """
 <script>
-new Chart(document.getElementById('{id}').getContext('2d'), {{
+new Chart(document.getElementById('{id}').getContext('2d'), {
   type: 'line',
-  data: {{
+  data: {
     labels: {labels},
-    datasets: [{{
+    datasets: [{
       label: '30-Day Price',
       data: {values},
       borderColor: '#0074D9',
       backgroundColor: 'rgba(0, 116, 217, 0.1)',
       fill: true,
       tension: 0.3
-    }}]
-  }},
-  options: {{
+    }]
+  },
+  options: {
     responsive: true,
-    scales: {{
-      y: {{ beginAtZero: false }}
-    }}
-  }}
-}});
+    scales: {
+      y: { beginAtZero: false }
+    }
+  }
+});
 </script>
 """.format(id=chart_id, labels=labels, values=values)
             html += "</div>"
