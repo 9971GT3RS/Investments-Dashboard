@@ -27,7 +27,8 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git pull --rebase origin main
           git add boersen-dashboard.html
           git commit -m "Auto-update dashboard" || echo "No changes to commit"
+          git pull --rebase origin main
           git push origin main
+
