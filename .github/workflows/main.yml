@@ -23,12 +23,13 @@ jobs:
       - name: Update HTML
         run: python update_dashboard.py
 
-      - name: Commit and push changes
+       - name: Commit and push changes
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add boersen-dashboard.html
+          git add -A
           git commit -m "Auto-update dashboard" || echo "No changes to commit"
-          git pull --rebase origin main
+          git pull --rebase origin main || echo "Nothing to rebase"
           git push origin main
+
 
