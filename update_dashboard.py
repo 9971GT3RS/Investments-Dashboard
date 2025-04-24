@@ -1,4 +1,4 @@
-# update_dashboard.py (komplette Version mit WTI & USD/EUR)
+# update_dashboard.py (mit vollständigen Charts und USD/EUR Wechselkurs sichtbar im Dashboard)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -97,7 +97,7 @@ def build_html(data):
 <head>
   <meta charset='UTF-8'>
   <title>Market Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
   <style>
     body {{ font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #333; }}
     h1 {{ font-size: 2em; }}
