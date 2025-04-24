@@ -1,4 +1,4 @@
-# update_dashboard.py (mit funktionierenden Earnings-Daten, wie zuvor)
+# update_dashboard.py (Bulk-Methode für Earnings wie früher)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -82,21 +82,24 @@ def fetch_earnings_dates():
             except json.JSONDecodeError:
                 print("Earnings cache file is invalid.")
 
-    print("[DEBUG] Fetching earnings dates (per symbol, cached)...")
+    print("[DEBUG] Fetching earnings dates (bulk)...")
+    from_date = now.strftime("%Y-%m-%d")
+    to_date = (now + timedelta(days=90)).strftime("%Y-%m-%d")
+    url = f"https://financialmodelingprep.com/api/v3/earning_calendar?from={from_date}&to={to_date}&apikey={FMP_API_KEY}"
+
     earnings_map = {}
-    for symbol in GROUPS["Shares"]:
-        url = f"https://financialmodelingprep.com/api/v3/earning_calendar/{symbol}?apikey={FMP_API_KEY}"
-        try:
-            r = requests.get(url)
-            r.raise_for_status()
-            items = r.json()
-            if items and isinstance(items, list):
-                earnings_date = items[0].get("date")
-                if earnings_date:
-                    dt = datetime.strptime(earnings_date, "%Y-%m-%d")
-                    earnings_map[symbol] = dt.strftime("%d.%m.%Y")
-        except Exception as e:
-            print(f"[EARNINGS] Error for {symbol}:", e)
+    try:
+        r = requests.get(url)
+        r.raise_for_status()
+        data = r.json()
+        for entry in data:
+            symbol = entry.get("symbol")
+            date = entry.get("date")
+            if symbol in GROUPS["Shares"] and date:
+                dt = datetime.strptime(date, "%Y-%m-%d")
+                earnings_map[symbol] = dt.strftime("%d.%m.%Y")
+    except Exception as e:
+        print("Earnings fetch error:", e)
 
     with open(cache_file, "w", encoding="utf-8") as f:
         json.dump({"timestamp": now.isoformat(), "data": earnings_map}, f, indent=2)
@@ -127,7 +130,7 @@ def build_html(data):
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #333; }
     h1 { font-size: 2em; }
-    h2 { margin-top: 2em; border-bottom: 2px solid #ccc; padding-bottom: 0.2em; }
+    h2 { margin-top: 2em; border-bottom: 2px solid #ccc; padding-bottom:  0.2em; }
     .entry { display: flex; justify-content: space-between; align-items: flex-start; background: #fff; margin: 1em 0; padding: 1em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
     .info { width: 48%; }
     .chart { width: 48%; }
