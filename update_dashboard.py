@@ -1,4 +1,4 @@
-# update_dashboard.py (mit vollständigen Charts und USD/EUR Wechselkurs sichtbar im Dashboard)
+# update_dashboard.py (Chart-Fix + echter WTI + USD/EUR Wechselkurs explizit dargestellt)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -16,7 +16,7 @@ GROUPS = {
     ],
     "Indices": ["^GSPC", "^NDX"],
     "Crypto": ["BTC-USD", "ETH-USD"],
-    "Commodities": ["WTI"],
+    "Commodities": ["WTIUSD"],
     "FX": ["USDEUR"]
 }
 
@@ -113,6 +113,7 @@ def build_html(data):
 <body>
 <h1>Market Dashboard</h1>
 <p>Last updated: {berlin_time} (Berlin Time)</p>
+<p>USD → EUR rate: {exchange_rate:.4f}</p>
 """
 
     for group_name, tickers in GROUPS.items():
