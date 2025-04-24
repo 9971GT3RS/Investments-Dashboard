@@ -1,4 +1,4 @@
-# update_dashboard.py (Charts für alle Gruppen: Shares, Indices, Crypto, Commodities, FX)
+# update_dashboard.py (Ölpreis korrekt angezeigt, USD/EUR umgedreht als EUR/USD)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -7,7 +7,7 @@ import os
 FMP_API_KEY = "ITys2XTLibnUOmblYKvkn59LlBeLOoWU"
 YAHOO_API_URL = "https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes"
 YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
-EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
+EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=EUR&to=USD"
 
 GROUPS = {
     "Shares": [
@@ -16,8 +16,8 @@ GROUPS = {
     ],
     "Indices": ["^GSPC", "^NDX"],
     "Crypto": ["BTC-USD", "ETH-USD"],
-    "Commodities": ["WTIUSD"],
-    "FX": ["USDEUR"]
+    "Commodities": ["CL=F"],
+    "FX": ["EURUSD"]
 }
 
 ALL_TICKERS = [symbol for group in GROUPS.values() for symbol in group]
@@ -85,9 +85,9 @@ def build_html(data):
     charts = fetch_chart_data()
 
     try:
-        exchange_rate = requests.get(EXCHANGE_RATE_API).json()['rates']['EUR']
+        usd_rate = requests.get(EXCHANGE_RATE_API).json()['rates']['USD']
     except:
-        exchange_rate = 1.0
+        usd_rate = 1.0
 
     data_by_symbol = {item.get('symbol'): item for item in data}
 
@@ -113,7 +113,7 @@ def build_html(data):
 <body>
 <h1>Market Dashboard</h1>
 <p>Last updated: {berlin_time} (Berlin Time)</p>
-<p>USD → EUR rate: {exchange_rate:.4f}</p>
+<p>EUR → USD rate: {usd_rate:.4f}</p>
 """
 
     for group_name, tickers in GROUPS.items():
@@ -127,7 +127,7 @@ def build_html(data):
             change = item.get('regularMarketChangePercent')
             change_text = f"{change:.2f}%" if isinstance(change, (int, float)) else "N/A"
             change_class = "positive" if change and change > 0 else "negative" if change and change < 0 else ""
-            price_eur = float(price_usd) * exchange_rate if isinstance(price_usd, (int, float)) else "N/A"
+            price_eur = float(price_usd) / usd_rate if isinstance(price_usd, (int, float)) else "N/A"
             earnings_date = earnings_map.get(symbol, "N/A")
             chart = charts.get(symbol)
 
