@@ -177,3 +177,6 @@ new Chart(document.getElementById('{id}').getContext('2d'), {{
 if __name__ == "__main__":
     stock_data = fetch_stock_data()
     build_html(stock_data)
+
+# Trigger update
+
