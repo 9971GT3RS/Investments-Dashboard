@@ -1,4 +1,4 @@
-# update_dashboard.py (alphabetische Shares, plus Ölpreis und USD/EUR Wechselkurs mit Chart)
+# update_dashboard.py (korrekt: alphabetische Shares, Charts für WTI und USD-EUR)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -10,9 +10,10 @@ YAHOO_API_KEY = "90bd89d333msh8e2d2a6b2dca946p1b69edjsn6f4c7fe55d2a"
 EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
 
 GROUPS = {
-    "Shares": [
-        "AMD", "AMZN", "ASML", "BABA", "CRM", "CRWD", "GOOGL", "ILMN", "META", "MRVL", "MSFT", "MU", "NKE", "NOW", "NVDA", "OXY", "PAYPL", "PLTR", "RNKGF", "RNMBF", "SQ", "TSLA", "TSM", "UAA", "XOM", "XPEV"
-    ],
+    "Shares": sorted([
+        "META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT", "CRM", "NOW", "TSLA", "TSM",
+        "SQ", "ILMN", "MU", "MRVL", "NKE", "RNKGF", "XOM", "OXY", "UAA", "BABA", "XPEV", "RNMBF", "PLTR"
+    ]),
     "Indices": ["^GSPC", "^NDX"],
     "Crypto": ["BTC-USD", "ETH-USD"],
     "Commodities": ["WTI"],
@@ -63,15 +64,11 @@ def fetch_earnings_dates():
 
 def fetch_commodities_and_fx():
     try:
-        # Ölpreis WTI (simuliert)
-        wti_price = 66.23  # Fester Wert, da keine kostenlose Echtzeitquelle verfügbar ist
-
-        # USD-EUR Wechselkurs
+        wti_price = 66.23  # Festgelegt
         response = requests.get(EXCHANGE_RATE_API)
         response.raise_for_status()
         usd_to_eur = response.json()['rates']['EUR']
         usd_per_eur = round(1 / usd_to_eur, 4)
-
         return {"WTI": wti_price, "USD-EUR": usd_per_eur}
     except Exception as e:
         print("Error fetching commodities or fx:", e)
@@ -121,7 +118,39 @@ def build_html(data):
         for symbol in sorted(tickers):
             if group_name in ["Commodities", "FX"]:
                 value = commodities_fx.get(symbol, "N/A")
-                html += f"<div class='entry'><div class='info'><h3>{symbol}</h3><p>Value: {value}</p></div></div>"
+                chart = charts.get(symbol)
+                html += f"<div class='entry'><div class='info'><h3>{symbol}</h3><p>Value: {value}</p></div>"
+                if chart:
+                    chart_id = f"chart_{symbol}"
+                    labels = [point["label"] for point in chart]
+                    values = [point["value"] for point in chart]
+                    chart_script = f"""
+<div class='chart'>
+  <canvas id='{chart_id}'></canvas>
+  <script>
+    new Chart(document.getElementById('{chart_id}').getContext('2d'), {{
+      type: 'line',
+      data: {{
+        labels: {labels},
+        datasets: [{{
+          label: '{symbol} Trend',
+          data: {values},
+          borderColor: '#0074D9',
+          backgroundColor: 'rgba(0, 116, 217, 0.1)',
+          fill: true,
+          tension: 0.3
+        }}]
+      }},
+      options: {{
+        responsive: true,
+        scales: {{ y: {{ beginAtZero: false }} }}
+      }}
+    }});
+  </script>
+</div>
+"""
+                    html += chart_script
+                html += "</div>"
                 continue
 
             item = data_by_symbol.get(symbol)
