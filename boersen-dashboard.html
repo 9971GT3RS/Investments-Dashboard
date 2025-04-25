@@ -19,7 +19,7 @@
 </head>
 <body>
 <h1>Market Dashboard</h1>
-<p>Last updated: 25.04.2025 – 12:54 (Berlin Time)</p>
+<p>Last updated: 25.04.2025 – 13:26 (Berlin Time)</p>
 <h2>Shares</h2><div class='entry'><div class='info'><h3>Advanced Micro Devices, Inc. (AMD)</h3><p>Price: $94.47 <span class='positive'>(4.51%)</span> / €83.04</p><p>Next earnings: 30.04.2025</p></div>
 <div class='chart'>
   <canvas id='chart_AMD'></canvas>
@@ -428,6 +428,30 @@
     });
   </script>
 </div>
+</div><div class='entry'><div class='info'><h3>PayPal Holdings, Inc. (PYPL)</h3><p>Price: $64.77 <span class='positive'>(3.70%)</span> / €56.94</p><p>Next earnings: 01.05.2025</p></div>
+<div class='chart'>
+  <canvas id='chart_PYPL'></canvas>
+  <script>
+    new Chart(document.getElementById('chart_PYPL').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: ['2025-03-13', '2025-03-14', '2025-03-17', '2025-03-18', '2025-03-19', '2025-03-20', '2025-03-21', '2025-03-24', '2025-03-25', '2025-03-26', '2025-03-27', '2025-03-28', '2025-03-31', '2025-04-01', '2025-04-02', '2025-04-03', '2025-04-04', '2025-04-07', '2025-04-08', '2025-04-09', '2025-04-10', '2025-04-11', '2025-04-14', '2025-04-15', '2025-04-16', '2025-04-17', '2025-04-21', '2025-04-22', '2025-04-23', '2025-04-24'],
+        datasets: [{
+          label: '30-Day Price',
+          data: [66.91, 68.95, 69.65, 68.88, 70, 69.67, 70.19, 70.97, 70.86, 69.97, 68.86, 65.15, 65.25, 66.1, 67.15, 61.71, 58.37, 58.53, 57.41, 63.95, 60.56, 62.59, 62.27, 62, 60.24, 61, 60.29, 61.42, 62.46, 64.355],
+          borderColor: '#0074D9',
+          backgroundColor: 'rgba(0, 116, 217, 0.1)',
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: { y: { beginAtZero: false } }
+      }
+    });
+  </script>
+</div>
 </div><div class='entry'><div class='info'><h3>RNKGF (RNKGF)</h3><p>Price: $56.39 <span class='negative'>(-0.02%)</span> / €49.57</p><p>Next earnings: 12.08.2025</p></div></div><div class='entry'><div class='info'><h3>Rheinmetall AG (RNMBF)</h3><p>Price: $1578.0 <span class='positive'>(3.82%)</span> / €1387.13</p><p>Next earnings: 08.05.2025</p></div>
 <div class='chart'>
   <canvas id='chart_RNMBF'></canvas>
@@ -572,7 +596,7 @@
     });
   </script>
 </div>
-</div><h2>Indices</h2><div class='entry'><div class='info'><h3>S&P 500 (^GSPC)</h3><p>Price: $5484.77 <span class='positive'>(2.03%)</span> / €4821.33</p><p>Next earnings: N/A</p></div></div><div class='entry'><div class='info'><h3>NASDAQ 100 (^NDX)</h3><p>Price: $19214.4 <span class='positive'>(2.79%)</span> / €16890.23</p><p>Next earnings: N/A</p></div></div><h2>Crypto</h2><div class='entry'><div class='info'><h3>Bitcoin USD (BTC-USD)</h3><p>Price: $93640.84 <span class='positive'>(1.20%)</span> / €82314.04</p><p>Next earnings: N/A</p></div>
+</div><h2>Indices</h2><div class='entry'><div class='info'><h3>S&P 500 (^GSPC)</h3><p>Price: $5484.77 <span class='positive'>(2.03%)</span> / €4821.33</p><p>Next earnings: N/A</p></div></div><div class='entry'><div class='info'><h3>NASDAQ 100 (^NDX)</h3><p>Price: $19214.4 <span class='positive'>(2.79%)</span> / €16890.23</p><p>Next earnings: N/A</p></div></div><h2>Crypto</h2><div class='entry'><div class='info'><h3>Bitcoin USD (BTC-USD)</h3><p>Price: $94094.56 <span class='positive'>(1.93%)</span> / €82712.88</p><p>Next earnings: N/A</p></div>
 <div class='chart'>
   <canvas id='chart_BTC-USD'></canvas>
   <script>
@@ -596,7 +620,7 @@
     });
   </script>
 </div>
-</div><div class='entry'><div class='info'><h3>Ethereum USD (ETH-USD)</h3><p>Price: $1771.5543 <span class='positive'>(1.33%)</span> / €1557.27</p><p>Next earnings: N/A</p></div>
+</div><div class='entry'><div class='info'><h3>Ethereum USD (ETH-USD)</h3><p>Price: $1785.041 <span class='positive'>(2.35%)</span> / €1569.12</p><p>Next earnings: N/A</p></div>
 <div class='chart'>
   <canvas id='chart_ETH-USD'></canvas>
   <script>
