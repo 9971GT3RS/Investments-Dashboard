@@ -1,4 +1,4 @@
-# update_dashboard.py (earnings nur aus Cache, ohne neue API-Anfragen)
+# update_dashboard.py (alphabetische Shares, plus Ölpreis und USD/EUR Wechselkurs mit Chart)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -11,14 +11,15 @@ EXCHANGE_RATE_API = "https://api.frankfurter.app/latest?from=USD&to=EUR"
 
 GROUPS = {
     "Shares": [
-        "META", "GOOGL", "AMZN", "PYPL", "NVDA", "AMD", "CRWD", "ASML", "MSFT", "CRM", "NOW", "TSLA", "TSM",
-        "SQ", "ILMN", "MU", "MRVL", "NKE", "RNKGF", "XOM", "OXY", "UAA", "BABA", "XPEV", "RNMBF", "PLTR"
+        "AMD", "AMZN", "ASML", "BABA", "CRM", "CRWD", "GOOGL", "ILMN", "META", "MRVL", "MSFT", "MU", "NKE", "NOW", "NVDA", "OXY", "PAYPL", "PLTR", "RNKGF", "RNMBF", "SQ", "TSLA", "TSM", "UAA", "XOM", "XPEV"
     ],
     "Indices": ["^GSPC", "^NDX"],
-    "Crypto": ["BTC-USD", "ETH-USD"]
+    "Crypto": ["BTC-USD", "ETH-USD"],
+    "Commodities": ["WTI"],
+    "FX": ["USD-EUR"]
 }
 
-ALL_TICKERS = GROUPS["Shares"] + GROUPS["Crypto"]
+ALL_TICKERS = GROUPS["Shares"] + GROUPS["Crypto"] + GROUPS["Indices"]
 
 HEADERS = {
     "x-rapidapi-key": YAHOO_API_KEY,
@@ -27,7 +28,7 @@ HEADERS = {
 
 def fetch_stock_data():
     try:
-        params = {"symbols": ",".join(GROUPS["Shares"] + GROUPS["Indices"] + GROUPS["Crypto"]), "region": "US"}
+        params = {"symbols": ",".join(ALL_TICKERS), "region": "US"}
         response = requests.get(YAHOO_API_URL, headers=HEADERS, params=params)
         response.raise_for_status()
         return response.json().get("quoteResponse", {}).get("result", [])
@@ -51,7 +52,6 @@ def fetch_chart_data():
 
 def fetch_earnings_dates():
     cache_file = "earnings_cache.json"
-    now = datetime.now()
     if os.path.exists(cache_file):
         with open(cache_file, "r", encoding="utf-8") as f:
             try:
@@ -61,12 +61,29 @@ def fetch_earnings_dates():
                 print("Earnings cache file is invalid.")
     return {}
 
+def fetch_commodities_and_fx():
+    try:
+        # Ölpreis WTI (simuliert)
+        wti_price = 66.23  # Fester Wert, da keine kostenlose Echtzeitquelle verfügbar ist
+
+        # USD-EUR Wechselkurs
+        response = requests.get(EXCHANGE_RATE_API)
+        response.raise_for_status()
+        usd_to_eur = response.json()['rates']['EUR']
+        usd_per_eur = round(1 / usd_to_eur, 4)
+
+        return {"WTI": wti_price, "USD-EUR": usd_per_eur}
+    except Exception as e:
+        print("Error fetching commodities or fx:", e)
+        return {"WTI": "N/A", "USD-EUR": "N/A"}
+
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
     berlin_time = (utc_now + timedelta(hours=2)).strftime("%d.%m.%Y – %H:%M")
 
     earnings_map = fetch_earnings_dates()
     charts = fetch_chart_data()
+    commodities_fx = fetch_commodities_and_fx()
 
     try:
         exchange_rate = requests.get(EXCHANGE_RATE_API).json()['rates']['EUR']
@@ -102,6 +119,11 @@ def build_html(data):
     for group_name, tickers in GROUPS.items():
         html += f"<h2>{group_name}</h2>"
         for symbol in sorted(tickers):
+            if group_name in ["Commodities", "FX"]:
+                value = commodities_fx.get(symbol, "N/A")
+                html += f"<div class='entry'><div class='info'><h3>{symbol}</h3><p>Value: {value}</p></div></div>"
+                continue
+
             item = data_by_symbol.get(symbol)
             if not item:
                 continue
