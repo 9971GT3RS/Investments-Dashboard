@@ -1,4 +1,4 @@
-# update_dashboard.py (Bulk-Methode für Earnings wie früher)
+# update_dashboard.py (earnings nur aus Cache, ohne neue API-Anfragen)
 import requests
 from datetime import datetime, timedelta, timezone
 import json
@@ -47,27 +47,7 @@ def fetch_chart_data():
                     return cache.get("data", {})
             except json.JSONDecodeError:
                 print("Chart cache file is invalid.")
-
-    print("[DEBUG] Downloading fresh chart data...")
-    chart_data = {}
-    for symbol in ALL_TICKERS:
-        url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{symbol}?timeseries=30&apikey={FMP_API_KEY}"
-        try:
-            r = requests.get(url)
-            r.raise_for_status()
-            hist = r.json().get("historical", [])
-            hist.reverse()
-            chart_data[symbol] = [
-                {"label": h["date"], "value": h["close"]}
-                for h in hist if "close" in h and "date" in h
-            ]
-        except Exception as e:
-            print(f"FMP chart data error for {symbol}:", e)
-
-    with open(cache_file, "w", encoding="utf-8") as f:
-        json.dump({"timestamp": now.isoformat(), "data": chart_data}, f, indent=2)
-
-    return chart_data
+    return {}
 
 def fetch_earnings_dates():
     cache_file = "earnings_cache.json"
@@ -76,35 +56,10 @@ def fetch_earnings_dates():
         with open(cache_file, "r", encoding="utf-8") as f:
             try:
                 cache = json.load(f)
-                timestamp = datetime.fromisoformat(cache.get("timestamp", "1970-01-01"))
-                if (now - timestamp).total_seconds() < 86400 and cache.get("data"):
-                    return cache.get("data", {})
+                return cache.get("data", {})
             except json.JSONDecodeError:
                 print("Earnings cache file is invalid.")
-
-    print("[DEBUG] Fetching earnings dates (bulk)...")
-    from_date = now.strftime("%Y-%m-%d")
-    to_date = (now + timedelta(days=90)).strftime("%Y-%m-%d")
-    url = f"https://financialmodelingprep.com/api/v3/earning_calendar?from={from_date}&to={to_date}&apikey={FMP_API_KEY}"
-
-    earnings_map = {}
-    try:
-        r = requests.get(url)
-        r.raise_for_status()
-        data = r.json()
-        for entry in data:
-            symbol = entry.get("symbol")
-            date = entry.get("date")
-            if symbol in GROUPS["Shares"] and date:
-                dt = datetime.strptime(date, "%Y-%m-%d")
-                earnings_map[symbol] = dt.strftime("%d.%m.%Y")
-    except Exception as e:
-        print("Earnings fetch error:", e)
-
-    with open(cache_file, "w", encoding="utf-8") as f:
-        json.dump({"timestamp": now.isoformat(), "data": earnings_map}, f, indent=2)
-
-    return earnings_map
+    return {}
 
 def build_html(data):
     utc_now = datetime.now(timezone.utc)
@@ -130,7 +85,7 @@ def build_html(data):
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #333; }
     h1 { font-size: 2em; }
-    h2 { margin-top: 2em; border-bottom: 2px solid #ccc; padding-bottom:  0.2em; }
+    h2 { margin-top: 2em; border-bottom: 2px solid #ccc; padding-bottom: 0.2em; }
     .entry { display: flex; justify-content: space-between; align-items: flex-start; background: #fff; margin: 1em 0; padding: 1em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
     .info { width: 48%; }
     .chart { width: 48%; }
